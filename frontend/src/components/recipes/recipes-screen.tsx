@@ -1,8 +1,9 @@
 import { useState } from 'preact/hooks';
 import { navigate } from '../../router/router';
-import { mockRecipes, getLastSession } from '../../mock-data';
+import { hydratedRecipes, getLastSessionForRecipe } from '../../state/store';
 import { LabelBadge } from '../shared/label-badge';
 import { AddRecipeSheet } from '../shared/add-recipe-sheet';
+import { formatTime } from '../../mock-data';
 
 const SOURCE_ICONS: Record<string, string> = {
   manual: '✏️',
@@ -14,12 +15,14 @@ export function RecipesScreen() {
   const [search, setSearch] = useState('');
   const [showAddRecipe, setShowAddRecipe] = useState(false);
 
+  const allRecipes = hydratedRecipes.value;
+
   const filtered = search.trim()
-    ? mockRecipes.filter(r =>
+    ? allRecipes.filter(r =>
         r.name.toLowerCase().includes(search.toLowerCase()) ||
         r.description.toLowerCase().includes(search.toLowerCase())
       )
-    : mockRecipes;
+    : allRecipes;
 
   const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
 
@@ -50,7 +53,7 @@ export function RecipesScreen() {
       ) : (
         <div>
           {sorted.map(recipe => {
-            const lastSession = getLastSession(recipe.id);
+            const lastSession = getLastSessionForRecipe(recipe.id);
             return (
               <div
                 key={recipe.id}
@@ -76,9 +79,9 @@ export function RecipesScreen() {
                     )}
                     <span>{recipe.servings} servings</span>
                   </div>
-                  {recipe.labels.length > 0 && (
+                  {recipe.parsedLabels.length > 0 && (
                     <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: 'var(--space-xs)' }}>
-                      {recipe.labels.map(label => (
+                      {recipe.parsedLabels.map(label => (
                         <LabelBadge key={label} name={label} />
                       ))}
                     </div>

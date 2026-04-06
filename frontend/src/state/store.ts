@@ -46,6 +46,42 @@ export const filteredCompletedSessions = computed(() => {
   });
 });
 
+// ===== Hydrated Recipe (joins recipe + ingredients + steps) =====
+export interface HydratedRecipe extends RecipeWithRow {
+  parsedLabels: string[];
+  recipeIngredients: RecipeIngredientWithRow[];
+  prepSteps: RecipeStepWithRow[];
+  cookingSteps: RecipeStepWithRow[];
+}
+
+export const hydratedRecipes = computed<HydratedRecipe[]>(() => {
+  return recipes.value.map(r => ({
+    ...r,
+    parsedLabels: r.labels.split(',').filter(Boolean),
+    recipeIngredients: recipeIngredients.value
+      .filter(ri => ri.recipe_id === r.id)
+      .sort((a, b) => a.order - b.order),
+    prepSteps: recipeSteps.value
+      .filter(s => s.recipe_id === r.id && s.stepType === 'prep')
+      .sort((a, b) => a.stepNumber - b.stepNumber),
+    cookingSteps: recipeSteps.value
+      .filter(s => s.recipe_id === r.id && s.stepType === 'cooking')
+      .sort((a, b) => a.stepNumber - b.stepNumber),
+  }));
+});
+
+export function getHydratedRecipe(id: string): HydratedRecipe | undefined {
+  return hydratedRecipes.value.find(r => r.id === id);
+}
+
+export function getSessionsForRecipe(recipeId: string): SessionWithRow[] {
+  return sessions.value.filter(s => s.recipe_id === recipeId && s.status === 'completed');
+}
+
+export function getLastSessionForRecipe(recipeId: string): SessionWithRow | undefined {
+  return getSessionsForRecipe(recipeId).sort((a, b) => b.date.localeCompare(a.date))[0];
+}
+
 // ===== Computed: Labels =====
 export const allLabelNames = computed(() =>
   labels.value.map(l => l.name).sort()

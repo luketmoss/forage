@@ -17,11 +17,25 @@ import {
   updateLabel as updateLabelApi,
   deleteLabel as deleteLabelApi,
 } from '../api/labels-api';
-import type { IngredientWithRow, LabelWithRow } from '../api/types';
+import {
+  fetchRecipes,
+  createRecipe,
+  updateRecipe as updateRecipeApi,
+  deleteRecipe as deleteRecipeApi,
+} from '../api/recipes-api';
+import { fetchRecipeIngredients } from '../api/recipe-ingredients-api';
+import { fetchRecipeSteps } from '../api/recipe-steps-api';
+import type { IngredientWithRow, LabelWithRow, RecipeWithRow } from '../api/types';
 import { ReauthFailedError } from '../auth/reauth';
+import {
+  DEMO_RECIPE_INGREDIENTS,
+  DEMO_RECIPE_STEPS,
+} from '../api/demo-data';
 import {
   recipes,
   ingredients,
+  recipeIngredients,
+  recipeSteps,
   sessions,
   labels,
   loading,
@@ -43,19 +57,25 @@ export async function loadInitialData(token: string): Promise<void> {
     if (isDemo()) {
       recipes.value = [...DEMO_RECIPES];
       ingredients.value = [...DEMO_INGREDIENTS];
+      recipeIngredients.value = [...DEMO_RECIPE_INGREDIENTS];
+      recipeSteps.value = [...DEMO_RECIPE_STEPS];
       sessions.value = [...DEMO_SESSIONS];
       labels.value = [...DEMO_LABELS];
     } else {
-      // Fetch from Sheets (others still use demo data for now)
-      const [fetchedIngredients, fetchedLabels] = await Promise.all([
+      const [fetchedRecipes, fetchedIngredients, fetchedLabels, fetchedRI, fetchedRS] = await Promise.all([
+        fetchRecipes(token),
         fetchIngredients(token),
         fetchLabels(token),
+        fetchRecipeIngredients(token),
+        fetchRecipeSteps(token),
       ]);
+      recipes.value = fetchedRecipes;
       ingredients.value = fetchedIngredients;
       labels.value = fetchedLabels;
+      recipeIngredients.value = fetchedRI;
+      recipeSteps.value = fetchedRS;
 
-      // TODO: Wire these to Sheets API as each feature is built
-      recipes.value = [...DEMO_RECIPES];
+      // TODO: Wire sessions to Sheets API
       sessions.value = [...DEMO_SESSIONS];
     }
   } catch (err) {
@@ -198,6 +218,70 @@ export async function removeLabel(
   } catch (err) {
     if (isReauthFailure(err)) throw err;
     showToast('Failed to delete label', 'error');
+    throw err;
+  }
+}
+
+// ── Recipes ──────────────────────────────────────────────────────────
+
+export async function addRecipe(
+  data: { name: string; description: string; source: string; sourceUrl: string; servings: number; labels: string; notes: string },
+  token: string,
+): Promise<RecipeWithRow> {
+  try {
+    const created = await createRecipe({
+      ...data,
+      source: data.source as 'manual' | 'web' | 'photo',
+      rating: 0,
+      prepTime: 0,
+      created: '',
+      updated: '',
+    }, token);
+    const withRow: RecipeWithRow = {
+      ...created,
+      sheetRow: recipes.value.length + 2,
+    };
+    recipes.value = [...recipes.value, withRow];
+    showToast('Recipe created', 'success');
+    return withRow;
+  } catch (err) {
+    if (isReauthFailure(err)) throw err;
+    showToast('Failed to create recipe', 'error');
+    throw err;
+  }
+}
+
+export async function editRecipe(
+  recipe: RecipeWithRow,
+  token: string,
+): Promise<void> {
+  try {
+    await updateRecipeApi(recipe.sheetRow, recipe, token);
+    recipes.value = recipes.value.map(r => r.id === recipe.id ? recipe : r);
+    showToast('Recipe updated', 'success');
+  } catch (err) {
+    if (isReauthFailure(err)) throw err;
+    showToast('Failed to update recipe', 'error');
+    throw err;
+  }
+}
+
+export async function removeRecipe(
+  recipe: RecipeWithRow,
+  token: string,
+): Promise<void> {
+  try {
+    await deleteRecipeApi(recipe.sheetRow, token);
+    // Re-fetch for correct sheetRows
+    const fresh = await fetchRecipes(token);
+    recipes.value = fresh;
+    // Remove associated ingredients + steps from signals
+    recipeIngredients.value = recipeIngredients.value.filter(ri => ri.recipe_id !== recipe.id);
+    recipeSteps.value = recipeSteps.value.filter(rs => rs.recipe_id !== recipe.id);
+    showToast('Recipe deleted', 'success');
+  } catch (err) {
+    if (isReauthFailure(err)) throw err;
+    showToast('Failed to delete recipe', 'error');
     throw err;
   }
 }

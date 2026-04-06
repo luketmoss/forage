@@ -1,6 +1,10 @@
 import { useState } from 'preact/hooks';
 import { navigate } from '../../router/router';
-import { getRecipeById, getSessionsForRecipe, formatTime, type Recipe, type CookingSession } from '../../mock-data';
+import { useAuth } from '../../auth/auth-context';
+import { getHydratedRecipe, getSessionsForRecipe, type HydratedRecipe } from '../../state/store';
+import { editRecipe } from '../../state/actions';
+import { formatTime } from '../../mock-data';
+import type { SessionWithRow } from '../../api/types';
 import { LabelBadge } from '../shared/label-badge';
 import { LabelPicker } from '../shared/label-picker';
 
@@ -17,13 +21,14 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 
 export function RecipeDetail({ recipeId }: RecipeDetailProps) {
-  const recipe = getRecipeById(recipeId);
+  const { token } = useAuth();
+  const recipe = getHydratedRecipe(recipeId);
   const [activeTab, setActiveTab] = useState<TabName>('info');
   const [servings, setServings] = useState(recipe?.servings ?? 4);
   const [rating, setRating] = useState(recipe?.rating ?? 0);
   const [isEditing, setIsEditing] = useState(false);
   const [showStartSheet, setShowStartSheet] = useState(false);
-  const [recipeLabels, setRecipeLabels] = useState<string[]>(recipe?.labels ?? []);
+  const [recipeLabels, setRecipeLabels] = useState<string[]>(recipe?.parsedLabels ?? []);
 
   if (!recipe) {
     return (
@@ -47,6 +52,17 @@ export function RecipeDetail({ recipeId }: RecipeDetailProps) {
     { name: 'steps', label: 'Steps' },
     { name: 'history', label: 'History' },
   ];
+
+  async function handleToggleLabel(labelName: string) {
+    const updated = recipeLabels.includes(labelName)
+      ? recipeLabels.filter(l => l !== labelName)
+      : [...recipeLabels, labelName];
+    setRecipeLabels(updated);
+    // Persist label change
+    if (token) {
+      await editRecipe({ ...recipe!, labels: updated.join(',') }, token).catch(() => {});
+    }
+  }
 
   return (
     <div class="screen">
@@ -93,11 +109,7 @@ export function RecipeDetail({ recipeId }: RecipeDetailProps) {
             isEditing={isEditing}
             onEditToggle={() => setIsEditing(!isEditing)}
             labels={recipeLabels}
-            onToggleLabel={(name) => {
-              setRecipeLabels(prev =>
-                prev.includes(name) ? prev.filter(l => l !== name) : [...prev, name]
-              );
-            }}
+            onToggleLabel={handleToggleLabel}
           />
         )}
 
@@ -160,12 +172,12 @@ export function RecipeDetail({ recipeId }: RecipeDetailProps) {
 
 // ===== Info Tab =====
 function InfoTab({ recipe, servings, setServings, rating, setRating, lastSession, isEditing, onEditToggle, labels, onToggleLabel }: {
-  recipe: Recipe;
+  recipe: HydratedRecipe;
   servings: number;
   setServings: (n: number) => void;
   rating: number;
   setRating: (n: number) => void;
-  lastSession?: CookingSession;
+  lastSession?: SessionWithRow;
   isEditing: boolean;
   onEditToggle: () => void;
   labels: string[];
@@ -279,20 +291,19 @@ function InfoTab({ recipe, servings, setServings, rating, setRating, lastSession
 }
 
 // ===== Ingredients Tab =====
-function IngredientsTab({ recipe, scaleFactor, servings }: { recipe: Recipe; scaleFactor: number; servings: number }) {
+function IngredientsTab({ recipe, scaleFactor, servings }: { recipe: HydratedRecipe; scaleFactor: number; servings: number }) {
   const [showGrocerySheet, setShowGrocerySheet] = useState(false);
   const [groceryChecked, setGroceryChecked] = useState<Record<string, boolean>>({});
   const [showToast, setShowToast] = useState(false);
 
   function initGroceryChecked() {
     const init: Record<string, boolean> = {};
-    recipe.ingredients.forEach(ing => { init[ing.ingredient_id] = true; });
+    recipe.recipeIngredients.forEach(ing => { init[ing.ingredient_id] = true; });
     setGroceryChecked(init);
     setShowGrocerySheet(true);
   }
 
   function addToGroceryList() {
-    const count = Object.values(groceryChecked).filter(Boolean).length;
     setShowGrocerySheet(false);
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3000);
@@ -308,7 +319,6 @@ function IngredientsTab({ recipe, scaleFactor, servings }: { recipe: Recipe; sca
         </p>
       )}
 
-      {/* Add to Grocery List button */}
       <button
         class="btn btn-secondary btn-block"
         style={{ marginBottom: 'var(--space-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-sm)' }}
@@ -317,17 +327,16 @@ function IngredientsTab({ recipe, scaleFactor, servings }: { recipe: Recipe; sca
         🛒 Add to grocery list
       </button>
 
-      {recipe.ingredients.map(ing => {
+      {recipe.recipeIngredients.map(ing => {
         const scaledQty = Math.round(ing.quantity * scaleFactor * 100) / 100;
         return (
-          <div class="ingredient-row" key={ing.ingredient_id}>
+          <div class="ingredient-row" key={`${ing.ingredient_id}-${ing.order}`}>
             <span class="ingredient-qty">{scaledQty} {ing.unit}</span>
-            <span class="ingredient-name">{ing.name}</span>
+            <span class="ingredient-name">{ing.ingredientName}</span>
           </div>
         );
       })}
 
-      {/* Grocery List Sheet */}
       {showGrocerySheet && (
         <div class="modal-overlay" onClick={() => setShowGrocerySheet(false)}>
           <div class="modal-content" onClick={e => e.stopPropagation()}>
@@ -336,48 +345,33 @@ function IngredientsTab({ recipe, scaleFactor, servings }: { recipe: Recipe; sca
               <h2>🛒 Add to Grocery List</h2>
               <button class="btn-icon" onClick={() => setShowGrocerySheet(false)} aria-label="Close">✕</button>
             </div>
-
             <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-md)' }}>
-              Select ingredients to add ({selectedCount} of {recipe.ingredients.length})
+              Select ingredients to add ({selectedCount} of {recipe.recipeIngredients.length})
             </p>
-
-            {recipe.ingredients.map(ing => {
+            {recipe.recipeIngredients.map(ing => {
               const scaledQty = Math.round(ing.quantity * scaleFactor * 100) / 100;
               return (
                 <div class="shopping-item" key={ing.ingredient_id}>
                   <div class="shopping-check">
-                    <input
-                      type="checkbox"
-                      checked={groceryChecked[ing.ingredient_id] ?? true}
-                      onChange={() => setGroceryChecked(prev => ({ ...prev, [ing.ingredient_id]: !prev[ing.ingredient_id] }))}
-                    />
+                    <input type="checkbox" checked={groceryChecked[ing.ingredient_id] ?? true} onChange={() => setGroceryChecked(prev => ({ ...prev, [ing.ingredient_id]: !prev[ing.ingredient_id] }))} />
                   </div>
                   <div class="shopping-item-body">
-                    <div class="shopping-item-name">{ing.name}</div>
+                    <div class="shopping-item-name">{ing.ingredientName}</div>
                     <div class="shopping-item-qty">{scaledQty} {ing.unit}</div>
                   </div>
                 </div>
               );
             })}
-
-            <button
-              class="btn btn-primary btn-block"
-              style={{ marginTop: 'var(--space-lg)' }}
-              onClick={addToGroceryList}
-              disabled={selectedCount === 0}
-            >
+            <button class="btn btn-primary btn-block" style={{ marginTop: 'var(--space-lg)' }} onClick={addToGroceryList} disabled={selectedCount === 0}>
               Add {selectedCount} item{selectedCount !== 1 ? 's' : ''} to List
             </button>
           </div>
         </div>
       )}
 
-      {/* Toast */}
       {showToast && (
         <div class="toast-container">
-          <div class="toast toast-success">
-            ✓ {selectedCount} item{selectedCount !== 1 ? 's' : ''} added to grocery list
-          </div>
+          <div class="toast toast-success">✓ {selectedCount} item{selectedCount !== 1 ? 's' : ''} added to grocery list</div>
         </div>
       )}
     </div>
@@ -385,15 +379,15 @@ function IngredientsTab({ recipe, scaleFactor, servings }: { recipe: Recipe; sca
 }
 
 // ===== Prep Tab =====
-function PrepTab({ recipe }: { recipe: Recipe }) {
-  if (recipe.prep.length === 0) {
+function PrepTab({ recipe }: { recipe: HydratedRecipe }) {
+  if (recipe.prepSteps.length === 0) {
     return <div class="empty-state"><p>No prep steps for this recipe</p></div>;
   }
   return (
     <ol class="step-list">
-      {recipe.prep.map(step => (
-        <li key={step.step} class="step-item">
-          <span class="step-number">{step.step}</span>
+      {recipe.prepSteps.map(step => (
+        <li key={step.stepNumber} class="step-item">
+          <span class="step-number">{step.stepNumber}</span>
           <span class="step-text">{step.description}</span>
         </li>
       ))}
@@ -402,12 +396,15 @@ function PrepTab({ recipe }: { recipe: Recipe }) {
 }
 
 // ===== Steps Tab =====
-function StepsTab({ recipe }: { recipe: Recipe }) {
+function StepsTab({ recipe }: { recipe: HydratedRecipe }) {
+  if (recipe.cookingSteps.length === 0) {
+    return <div class="empty-state"><p>No cooking steps for this recipe</p></div>;
+  }
   return (
     <ol class="step-list">
-      {recipe.steps.map(step => (
-        <li key={step.step} class="step-item">
-          <span class="step-number">{step.step}</span>
+      {recipe.cookingSteps.map(step => (
+        <li key={step.stepNumber} class="step-item">
+          <span class="step-number">{step.stepNumber}</span>
           <span class="step-text">{step.description}</span>
         </li>
       ))}
@@ -416,8 +413,8 @@ function StepsTab({ recipe }: { recipe: Recipe }) {
 }
 
 // ===== History Tab =====
-function HistoryTab({ sessions }: { sessions: CookingSession[] }) {
-  const [editingSession, setEditingSession] = useState<CookingSession | null>(null);
+function HistoryTab({ sessions }: { sessions: SessionWithRow[] }) {
+  const [editingSession, setEditingSession] = useState<SessionWithRow | null>(null);
   const [editDate, setEditDate] = useState('');
   const [editPrepTime, setEditPrepTime] = useState(0);
   const [editCookTime, setEditCookTime] = useState(0);
@@ -428,7 +425,7 @@ function HistoryTab({ sessions }: { sessions: CookingSession[] }) {
     return <div class="empty-state"><p>No cook history for this recipe</p></div>;
   }
 
-  function openEdit(session: CookingSession) {
+  function openEdit(session: SessionWithRow) {
     setEditDate(session.date);
     setEditPrepTime(session.prepTime);
     setEditCookTime(session.cookTime);
@@ -438,7 +435,6 @@ function HistoryTab({ sessions }: { sessions: CookingSession[] }) {
   }
 
   function saveEdit() {
-    // In real app, would save to Google Sheets
     setEditingSession(null);
   }
 
@@ -446,14 +442,7 @@ function HistoryTab({ sessions }: { sessions: CookingSession[] }) {
     <div>
       <table class="history-table">
         <thead>
-          <tr>
-            <th>Date</th>
-            <th>Prep</th>
-            <th>Cook</th>
-            <th>Total</th>
-            <th>Rating</th>
-            <th></th>
-          </tr>
+          <tr><th>Date</th><th>Prep</th><th>Cook</th><th>Total</th><th>Rating</th><th></th></tr>
         </thead>
         <tbody>
           {sessions.map(s => (
@@ -472,16 +461,13 @@ function HistoryTab({ sessions }: { sessions: CookingSession[] }) {
                 ) : '—'}
               </td>
               <td>
-                <button class="btn-icon" onClick={() => openEdit(s)} aria-label="Edit session" style={{ width: '32px', height: '32px', fontSize: 'var(--text-sm)' }}>
-                  ✎
-                </button>
+                <button class="btn-icon" onClick={() => openEdit(s)} aria-label="Edit session" style={{ width: '32px', height: '32px', fontSize: 'var(--text-sm)' }}>✎</button>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      {/* Edit Session Modal */}
       {editingSession && (
         <div class="modal-overlay" onClick={() => setEditingSession(null)}>
           <div class="modal-content" onClick={e => e.stopPropagation()}>
@@ -490,12 +476,10 @@ function HistoryTab({ sessions }: { sessions: CookingSession[] }) {
               <h2>Edit Cook</h2>
               <button class="btn-icon" onClick={() => setEditingSession(null)} aria-label="Close">✕</button>
             </div>
-
             <div class="form-group">
               <label class="form-label">Date</label>
               <input type="date" class="form-input" value={editDate} onInput={e => setEditDate((e.target as HTMLInputElement).value)} />
             </div>
-
             <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
               <div class="form-group" style={{ flex: 1 }}>
                 <label class="form-label">Prep (min)</label>
@@ -506,28 +490,18 @@ function HistoryTab({ sessions }: { sessions: CookingSession[] }) {
                 <input type="number" class="form-input" inputMode="numeric" value={editCookTime} onInput={e => setEditCookTime(Number((e.target as HTMLInputElement).value))} />
               </div>
             </div>
-
             <div class="form-group">
               <label class="form-label">Rating</label>
               <span class="star-rating">
                 {[1, 2, 3, 4, 5].map(n => (
-                  <button
-                    key={n}
-                    class={`star-rating-btn ${n <= editRating ? 'filled' : ''}`}
-                    onClick={() => setEditRating(n === editRating ? 0 : n)}
-                    aria-label={`${n} star${n !== 1 ? 's' : ''}`}
-                  >
-                    ★
-                  </button>
+                  <button key={n} class={`star-rating-btn ${n <= editRating ? 'filled' : ''}`} onClick={() => setEditRating(n === editRating ? 0 : n)} aria-label={`${n} star${n !== 1 ? 's' : ''}`}>★</button>
                 ))}
               </span>
             </div>
-
             <div class="form-group">
               <label class="form-label">Notes</label>
               <textarea class="form-input" value={editNotes} onInput={e => setEditNotes((e.target as HTMLTextAreaElement).value)} />
             </div>
-
             <div class="confirm-modal-actions">
               <button class="btn btn-secondary" onClick={() => setEditingSession(null)}>Cancel</button>
               <button class="btn btn-primary" onClick={saveEdit}>Save</button>

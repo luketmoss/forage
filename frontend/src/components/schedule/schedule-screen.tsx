@@ -2,16 +2,14 @@ import { useState } from 'preact/hooks';
 import { navigate } from '../../router/router';
 import {
   mockSessions,
-  mockRecipes,
   getWeekDays,
   getWeekStats,
   groupSessionsByWeek,
-  getSessionLabels,
   toLocalDateStr,
   formatTime,
   type CookingSession,
 } from '../../mock-data';
-import { labels as labelsSignal } from '../../state/store';
+import { labels as labelsSignal, recipes as recipesSignal, recipeIngredients as riSignal } from '../../state/store';
 import { getLabelColor } from '../../api/label-colors';
 import { LabelBadge } from '../shared/label-badge';
 import { AddRecipeSheet } from '../shared/add-recipe-sheet';
@@ -43,8 +41,9 @@ export function ScheduleScreen() {
   // Filter completed sessions by labels
   const filteredCompleted = filterLabels.length > 0
     ? completed.filter(s => {
-        const recipe = mockRecipes.find(r => r.id === s.recipeId);
-        return recipe && filterLabels.some(fl => recipe.labels.includes(fl));
+        const recipe = recipesSignal.value.find(r => r.id === s.recipeId);
+        const rl = recipe?.labels.split(',').filter(Boolean) ?? [];
+        return rl.length > 0 && filterLabels.some(fl => rl.includes(fl));
       })
     : completed;
 
@@ -52,7 +51,10 @@ export function ScheduleScreen() {
   const groups = groupSessionsByWeek(completedSorted, todayStr);
 
   // Labels used across all session recipes (for filter chips)
-  const availableLabels = getSessionLabels(completed);
+  const availableLabels = Array.from(new Set(completed.flatMap(s => {
+    const recipe = recipesSignal.value.find(r => r.id === s.recipeId);
+    return recipe ? recipe.labels.split(',').filter(Boolean) : [];
+  }))).sort();
 
   function toggleFilterLabel(name: string) {
     setFilterLabels(prev =>
@@ -88,17 +90,17 @@ export function ScheduleScreen() {
   }
 
   // Filtered recipe list for the picker
-  const pickerRecipes = mockRecipes.filter(r => {
+  const pickerRecipes = recipesSignal.value.filter(r => {
     const matchesSearch = !pickerSearch.trim() ||
       r.name.toLowerCase().includes(pickerSearch.toLowerCase()) ||
       r.description.toLowerCase().includes(pickerSearch.toLowerCase());
     const matchesLabels = pickerLabelFilter.length === 0 ||
-      pickerLabelFilter.some(fl => r.labels.includes(fl));
+      pickerLabelFilter.some(fl => r.labels.split(',').filter(Boolean).includes(fl));
     return matchesSearch && matchesLabels;
   }).sort((a, b) => a.name.localeCompare(b.name));
 
   // All unique labels across recipes (for picker filter)
-  const allRecipeLabels = Array.from(new Set(mockRecipes.flatMap(r => r.labels))).sort();
+  const allRecipeLabels = Array.from(new Set(recipesSignal.value.flatMap(r => r.labels.split(',').filter(Boolean)))).sort();
 
   return (
     <div class="screen">
@@ -163,7 +165,7 @@ export function ScheduleScreen() {
       {showFilters && (
         <div class="filter-bar">
           <div class="filter-row">
-            {availableLabels.map(name => {
+            {availableLabels.map((name: string) => {
               const label = labelsSignal.value.find(l => l.name === name);
               const color = getLabelColor(label?.colorKey ?? 'gray');
               return (
@@ -249,7 +251,7 @@ export function ScheduleScreen() {
                 </div>
                 {group.sessions.map(session => {
                   const totalTime = session.prepTime + session.cookTime;
-                  const recipe = mockRecipes.find(r => r.id === session.recipeId);
+                  const recipe = recipesSignal.value.find(r => r.id === session.recipeId);
                   return (
                     <div
                       key={session.id}
@@ -272,9 +274,9 @@ export function ScheduleScreen() {
                             </span>
                           )}
                         </span>
-                        {recipe && recipe.labels.length > 0 && (
+                        {recipe && recipe.labels && (
                           <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', marginTop: '3px' }}>
-                            {recipe.labels.slice(0, 3).map(l => <LabelBadge key={l} name={l} />)}
+                            {recipe.labels.split(',').filter(Boolean).slice(0, 3).map(l => <LabelBadge key={l} name={l} />)}
                           </div>
                         )}
                       </div>
@@ -421,9 +423,9 @@ export function ScheduleScreen() {
                           <div class="recipe-pick-meta">
                             {recipe.servings} servings · {recipe.prepTime > 0 ? `${recipe.prepTime}m prep` : 'No prep'}
                           </div>
-                          {recipe.labels.length > 0 && (
+                          {recipe.labels && (
                             <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', marginTop: '3px' }}>
-                              {recipe.labels.slice(0, 3).map(l => <LabelBadge key={l} name={l} />)}
+                              {recipe.labels.split(',').filter(Boolean).slice(0, 3).map(l => <LabelBadge key={l} name={l} />)}
                             </div>
                           )}
                         </div>
@@ -529,11 +531,12 @@ function ShoppingSheet({ onClose }: { onClose: () => void }) {
 
   const itemMap = new Map<string, ShoppingItem>();
   for (const session of scheduled) {
-    const recipe = mockRecipes.find(r => r.id === session.recipeId);
+    const recipe = recipesSignal.value.find(r => r.id === session.recipeId);
     if (!recipe) continue;
-    for (const ing of recipe.ingredients) {
+    const ings = riSignal.value.filter(ri => ri.recipe_id === recipe.id);
+    for (const ing of ings) {
       const key = ing.ingredient_id;
-      if (!itemMap.has(key)) itemMap.set(key, { name: ing.name, totalQty: 0, unit: ing.unit, recipes: [] });
+      if (!itemMap.has(key)) itemMap.set(key, { name: ing.ingredientName, totalQty: 0, unit: ing.unit, recipes: [] });
       const item = itemMap.get(key)!;
       item.totalQty += ing.quantity;
       item.recipes.push({ name: recipe.name, date: session.date, qty: ing.quantity });

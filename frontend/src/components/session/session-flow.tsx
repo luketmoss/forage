@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'preact/hooks';
-import { getRecipeById, formatTimerDisplay } from '../../mock-data';
+import { getHydratedRecipe } from '../../state/store';
+import { formatTimerDisplay } from '../../mock-data';
 
 interface SessionFlowProps {
   recipeId: string;
@@ -85,7 +86,7 @@ function TimerCard({ seconds, totalSeconds, label, isMain, isCountdown, running,
 }
 
 export function SessionFlow({ recipeId, onClose }: SessionFlowProps) {
-  const recipe = getRecipeById(recipeId);
+  const recipe = getHydratedRecipe(recipeId);
   const [phase, setPhase] = useState<Phase>('prep');
   const [prepChecked, setPrepChecked] = useState<Set<number>>(new Set());
   const [stepsChecked, setStepsChecked] = useState<Set<number>>(new Set());
@@ -258,21 +259,21 @@ export function SessionFlow({ recipeId, onClose }: SessionFlowProps) {
         {/* Prep Phase — Checklist */}
         {phase === 'prep' && (
           <div>
-            {recipe.prep.length === 0 ? (
+            {recipe.prepSteps.length === 0 ? (
               <div class="empty-state">
                 <p>No prep steps for this recipe</p>
                 <p>Tap "Start Cooking" to begin</p>
               </div>
             ) : (
               <ul class="prep-checklist">
-                {recipe.prep.map(step => (
+                {recipe.prepSteps.map(step => (
                   <li
-                    key={step.step}
-                    class={`prep-check-item ${prepChecked.has(step.step) ? 'checked' : ''}`}
-                    onClick={() => togglePrepCheck(step.step)}
+                    key={step.stepNumber}
+                    class={`prep-check-item ${prepChecked.has(step.stepNumber) ? 'checked' : ''}`}
+                    onClick={() => togglePrepCheck(step.stepNumber)}
                   >
                     <div class="prep-checkbox">
-                      {prepChecked.has(step.step) && '✓'}
+                      {prepChecked.has(step.stepNumber) && '✓'}
                     </div>
                     <span class="prep-check-text">{step.description}</span>
                   </li>
@@ -286,18 +287,18 @@ export function SessionFlow({ recipeId, onClose }: SessionFlowProps) {
         {phase === 'cooking' && (
           <div>
             <ul class="prep-checklist">
-              {recipe.steps.map(step => (
+              {recipe.cookingSteps.map(step => (
                 <li
-                  key={step.step}
-                  class={`prep-check-item ${stepsChecked.has(step.step) ? 'checked' : ''}`}
-                  onClick={() => toggleStepCheck(step.step)}
+                  key={step.stepNumber}
+                  class={`prep-check-item ${stepsChecked.has(step.stepNumber) ? 'checked' : ''}`}
+                  onClick={() => toggleStepCheck(step.stepNumber)}
                 >
                   <div class="prep-checkbox" style={{ borderRadius: '50%' }}>
-                    {stepsChecked.has(step.step) && '✓'}
+                    {stepsChecked.has(step.stepNumber) && '✓'}
                   </div>
                   <div style={{ flex: 1 }}>
                     <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-primary)', display: 'block', marginBottom: '2px' }}>
-                      Step {step.step}
+                      Step {step.stepNumber}
                     </span>
                     <span class="prep-check-text">{step.description}</span>
                   </div>
