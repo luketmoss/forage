@@ -1,0 +1,35 @@
+{
+  "name": "Forage — Menu Planner",
+  "short_name": "Forage",
+  "description": "Menu planning and recipe tracker powered by Google Sheets",
+  "start_url": "/forage/",
+  "display": "standalone",
+  "background_color": "#f0f2f5",
+  "theme_color": "#4CAF50",
+  "icons": [
+    {
+      "src": "forage-icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "forage-icon-192-maskable.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "forage-icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "forage-icon-512-maskable.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

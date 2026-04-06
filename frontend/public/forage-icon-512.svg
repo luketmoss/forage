@@ -1,0 +1,10 @@
+<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" width="512" height="512">
+  <polygon fill="#4CAF50" points="128,24 210,72 210,170 128,218 46,170 46,72"/>
+  <g transform="translate(128 114) scale(1.6) translate(-128 -112)">
+    <g fill="#FFFFFF" stroke="#1E1E1E" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="butt">
+      <path d="M128 88 C150 76 168 92 168 114 C168 138 150 156 128 156 C106 156 88 138 88 114 C88 92 106 76 128 88Z"/>
+      <ellipse cx="135" cy="74" rx="5.5" ry="3.5" transform="rotate(-28 135 74)"/>
+      <rect x="126" y="70" width="4" height="18" rx="2"/>
+    </g>
+  </g>
+</svg>
