@@ -1,7 +1,12 @@
-import { signal } from '@preact/signals';
-import { currentRoute } from './router/router';
-import { BottomNav } from './components/shared/bottom-nav';
+import { useEffect } from 'preact/hooks';
+import { AuthProvider } from './auth/auth-provider';
+import { useAuth } from './auth/auth-context';
 import { LoginScreen } from './auth/login-screen';
+import { BottomNav } from './components/shared/bottom-nav';
+import { Toast } from './components/shared/toast';
+import { loadInitialData } from './state/actions';
+import { loading } from './state/store';
+import { currentRoute } from './router/router';
 import { ScheduleScreen } from './components/schedule/schedule-screen';
 import { RecipesScreen } from './components/recipes/recipes-screen';
 import { RecipeDetail } from './components/recipes/recipe-detail';
@@ -11,18 +16,10 @@ import { SessionFlow } from './components/session/session-flow';
 import { SettingsScreen } from './components/settings/settings-screen';
 import { ManageLabelsScreen } from './components/settings/manage-labels-screen';
 
-const isAuthenticated = signal(false);
-// Track if a cooking session is active (full-screen takeover, no bottom nav)
-const activeSession = signal<string | null>(null);
-
-function handleLogin() {
-  isAuthenticated.value = true;
-}
-
 function Router() {
   const route = currentRoute.value;
 
-  // Full-screen cooking session
+  // Full-screen cooking session (no bottom nav)
   if (route.name === 'session-active') {
     return <SessionFlow recipeId={route.params.id} onClose={() => window.location.hash = '/'} />;
   }
@@ -48,9 +45,21 @@ function Router() {
   }
 }
 
-export function App() {
-  if (!isAuthenticated.value) {
-    return <LoginScreen onLogin={handleLogin} />;
+function AuthenticatedApp() {
+  const { token } = useAuth();
+
+  useEffect(() => {
+    if (!token) return;
+    loadInitialData(token);
+  }, [token]);
+
+  if (loading.value) {
+    return (
+      <div class="loading-screen">
+        <div class="spinner" />
+        <p>Loading...</p>
+      </div>
+    );
   }
 
   const route = currentRoute.value;
@@ -67,5 +76,23 @@ export function App() {
       </main>
       <BottomNav />
     </div>
+  );
+}
+
+function AppContent() {
+  const { isAuthenticated } = useAuth();
+  return (
+    <>
+      {isAuthenticated ? <AuthenticatedApp /> : <LoginScreen />}
+      <Toast />
+    </>
+  );
+}
+
+export function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
