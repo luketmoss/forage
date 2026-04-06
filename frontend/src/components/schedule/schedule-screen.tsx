@@ -1,16 +1,15 @@
 import { useState } from 'preact/hooks';
 import { navigate } from '../../router/router';
+import { useAuth } from '../../auth/auth-context';
 import {
-  mockSessions,
-  getWeekDays,
-  getWeekStats,
-  groupSessionsByWeek,
-  toLocalDateStr,
-  formatTime,
-  type CookingSession,
-} from '../../mock-data';
-import { labels as labelsSignal, recipes as recipesSignal, recipeIngredients as riSignal } from '../../state/store';
+  labels as labelsSignal,
+  recipes as recipesSignal,
+  sessions as sessionsSignal,
+  recipeIngredients as riSignal,
+} from '../../state/store';
+import type { SessionWithRow } from '../../api/types';
 import { getLabelColor } from '../../api/label-colors';
+import { getWeekDays, getWeekStats, groupSessionsByWeek, toLocalDateStr, formatTime } from '../../shared/utils';
 import { LabelBadge } from '../shared/label-badge';
 import { AddRecipeSheet } from '../shared/add-recipe-sheet';
 
@@ -23,7 +22,7 @@ export function ScheduleScreen() {
   const [showShopping, setShowShopping] = useState(false);
   const [newSheetStep, setNewSheetStep] = useState<'timing' | 'pick-recipe'>('timing');
   const [newCookTiming, setNewCookTiming] = useState<'now' | 'later'>('now');
-  const [pendingSession, setPendingSession] = useState<CookingSession | null>(null);
+  const [pendingSession, setPendingSession] = useState<SessionWithRow | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [filterLabels, setFilterLabels] = useState<string[]>([]);
   const [pickerSearch, setPickerSearch] = useState('');
@@ -32,16 +31,16 @@ export function ScheduleScreen() {
   const [showAddRecipe, setShowAddRecipe] = useState(false);
 
   const todayStr = toLocalDateStr(new Date());
-  const activeSessions = mockSessions.filter(s => s.status === 'active');
-  const completed = mockSessions.filter(s => s.status === 'completed');
-  const scheduled = mockSessions.filter(s => s.status === 'scheduled');
-  const weekDays = getWeekDays(mockSessions, todayStr);
-  const stats = getWeekStats(mockSessions, todayStr);
+  const activeSessions = sessionsSignal.value.filter(s => s.status === 'active');
+  const completed = sessionsSignal.value.filter(s => s.status === 'completed');
+  const scheduled = sessionsSignal.value.filter(s => s.status === 'scheduled');
+  const weekDays = getWeekDays(sessionsSignal.value, todayStr);
+  const stats = getWeekStats(sessionsSignal.value, todayStr);
 
   // Filter completed sessions by labels
   const filteredCompleted = filterLabels.length > 0
     ? completed.filter(s => {
-        const recipe = recipesSignal.value.find(r => r.id === s.recipeId);
+        const recipe = recipesSignal.value.find(r => r.id === s.recipe_id);
         const rl = recipe?.labels.split(',').filter(Boolean) ?? [];
         return rl.length > 0 && filterLabels.some(fl => rl.includes(fl));
       })
@@ -52,7 +51,7 @@ export function ScheduleScreen() {
 
   // Labels used across all session recipes (for filter chips)
   const availableLabels = Array.from(new Set(completed.flatMap(s => {
-    const recipe = recipesSignal.value.find(r => r.id === s.recipeId);
+    const recipe = recipesSignal.value.find(r => r.id === s.recipe_id);
     return recipe ? recipe.labels.split(',').filter(Boolean) : [];
   }))).sort();
 
@@ -201,7 +200,7 @@ export function ScheduleScreen() {
             <div
               key={session.id}
               class="session-card session-card-active"
-              onClick={() => navigate(`/session/${session.recipeId}`)}
+              onClick={() => navigate(`/session/${session.recipe_id}`)}
             >
               <div class="session-card-center">
                 <span class="session-card-name">{session.recipeName}</span>
@@ -251,12 +250,12 @@ export function ScheduleScreen() {
                 </div>
                 {group.sessions.map(session => {
                   const totalTime = session.prepTime + session.cookTime;
-                  const recipe = recipesSignal.value.find(r => r.id === session.recipeId);
+                  const recipe = recipesSignal.value.find(r => r.id === session.recipe_id);
                   return (
                     <div
                       key={session.id}
                       class="session-card"
-                      onClick={() => navigate(`/recipes/${session.recipeId}`)}
+                      onClick={() => navigate(`/recipes/${session.recipe_id}`)}
                     >
                       <div class="session-card-left">
                         <span class="session-card-date">{session.date.split('-').slice(1).join('/')}</span>
@@ -462,7 +461,7 @@ export function ScheduleScreen() {
 }
 
 // ===== Pending Session Detail Sheet =====
-function PendingSessionSheet({ session, onClose }: { session: CookingSession; onClose: () => void }) {
+function PendingSessionSheet({ session, onClose }: { session: SessionWithRow; onClose: () => void }) {
   const [editDate, setEditDate] = useState(session.date);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -477,7 +476,7 @@ function PendingSessionSheet({ session, onClose }: { session: CookingSession; on
         <div style={{ marginBottom: 'var(--space-lg)' }}>
           <h2
             style={{ cursor: 'pointer', color: 'var(--color-primary)' }}
-            onClick={() => { onClose(); navigate(`/recipes/${session.recipeId}`); }}
+            onClick={() => { onClose(); navigate(`/recipes/${session.recipe_id}`); }}
           >
             {session.recipeName}
           </h2>
@@ -504,10 +503,10 @@ function PendingSessionSheet({ session, onClose }: { session: CookingSession; on
             📅 Change Date
           </button>
         )}
-        <button class="btn btn-primary btn-block" style={{ marginBottom: 'var(--space-sm)' }} onClick={() => { onClose(); navigate(`/session/${session.recipeId}`); }}>
+        <button class="btn btn-primary btn-block" style={{ marginBottom: 'var(--space-sm)' }} onClick={() => { onClose(); navigate(`/session/${session.recipe_id}`); }}>
           🔥 Start Now
         </button>
-        <button class="btn btn-secondary btn-block" style={{ marginBottom: 'var(--space-sm)' }} onClick={() => { onClose(); navigate(`/recipes/${session.recipeId}/edit`); }}>
+        <button class="btn btn-secondary btn-block" style={{ marginBottom: 'var(--space-sm)' }} onClick={() => { onClose(); navigate(`/recipes/${session.recipe_id}/edit`); }}>
           ✎ Edit Recipe
         </button>
         <button class="btn btn-ghost btn-block" style={{ color: 'var(--color-danger)', marginTop: 'var(--space-sm)' }} onClick={onClose}>
@@ -525,13 +524,13 @@ function ShoppingSheet({ onClose }: { onClose: () => void }) {
   const [throughDate, setThroughDate] = useState('2026-04-10');
   const [included, setIncluded] = useState<Record<string, boolean>>({});
 
-  const scheduled = mockSessions.filter(s => s.status === 'scheduled' && s.date >= shopDate && s.date <= throughDate);
+  const scheduled = sessionsSignal.value.filter(s => s.status === 'scheduled' && s.date >= shopDate && s.date <= throughDate);
 
   interface ShoppingItem { name: string; totalQty: number; unit: string; recipes: { name: string; date: string; qty: number }[] }
 
   const itemMap = new Map<string, ShoppingItem>();
   for (const session of scheduled) {
-    const recipe = recipesSignal.value.find(r => r.id === session.recipeId);
+    const recipe = recipesSignal.value.find(r => r.id === session.recipe_id);
     if (!recipe) continue;
     const ings = riSignal.value.filter(ri => ri.recipe_id === recipe.id);
     for (const ing of ings) {

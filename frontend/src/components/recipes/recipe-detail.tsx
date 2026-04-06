@@ -3,7 +3,7 @@ import { navigate } from '../../router/router';
 import { useAuth } from '../../auth/auth-context';
 import { getHydratedRecipe, getSessionsForRecipe, type HydratedRecipe } from '../../state/store';
 import { editRecipe } from '../../state/actions';
-import { formatTime } from '../../mock-data';
+import { formatTime } from '../../shared/utils';
 import type { SessionWithRow } from '../../api/types';
 import { LabelBadge } from '../shared/label-badge';
 import { LabelPicker } from '../shared/label-picker';

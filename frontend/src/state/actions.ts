@@ -25,12 +25,15 @@ import {
 } from '../api/recipes-api';
 import { fetchRecipeIngredients } from '../api/recipe-ingredients-api';
 import { fetchRecipeSteps } from '../api/recipe-steps-api';
-import type { IngredientWithRow, LabelWithRow, RecipeWithRow } from '../api/types';
-import { ReauthFailedError } from '../auth/reauth';
 import {
-  DEMO_RECIPE_INGREDIENTS,
-  DEMO_RECIPE_STEPS,
-} from '../api/demo-data';
+  fetchSessions,
+  createSession,
+  updateSession as updateSessionApi,
+  deleteSession as deleteSessionApi,
+} from '../api/sessions-api';
+import type { IngredientWithRow, LabelWithRow, RecipeWithRow, SessionWithRow } from '../api/types';
+import { ReauthFailedError } from '../auth/reauth';
+import { DEMO_RECIPE_INGREDIENTS, DEMO_RECIPE_STEPS } from '../api/demo-data';
 import {
   recipes,
   ingredients,
@@ -62,21 +65,20 @@ export async function loadInitialData(token: string): Promise<void> {
       sessions.value = [...DEMO_SESSIONS];
       labels.value = [...DEMO_LABELS];
     } else {
-      const [fetchedRecipes, fetchedIngredients, fetchedLabels, fetchedRI, fetchedRS] = await Promise.all([
+      const [fetchedRecipes, fetchedIngredients, fetchedLabels, fetchedRI, fetchedRS, fetchedSessions] = await Promise.all([
         fetchRecipes(token),
         fetchIngredients(token),
         fetchLabels(token),
         fetchRecipeIngredients(token),
         fetchRecipeSteps(token),
+        fetchSessions(token),
       ]);
       recipes.value = fetchedRecipes;
       ingredients.value = fetchedIngredients;
       labels.value = fetchedLabels;
       recipeIngredients.value = fetchedRI;
       recipeSteps.value = fetchedRS;
-
-      // TODO: Wire sessions to Sheets API
-      sessions.value = [...DEMO_SESSIONS];
+      sessions.value = fetchedSessions;
     }
   } catch (err) {
     console.error('Failed to load data:', err);
@@ -282,6 +284,68 @@ export async function removeRecipe(
   } catch (err) {
     if (isReauthFailure(err)) throw err;
     showToast('Failed to delete recipe', 'error');
+    throw err;
+  }
+}
+
+// ── Sessions (Cooks) ─────────────────────────────────────────────────
+
+export async function addSession(
+  data: { recipe_id: string; recipeName: string; date: string; status: string },
+  token: string,
+): Promise<SessionWithRow> {
+  try {
+    const created = await createSession({
+      recipe_id: data.recipe_id,
+      recipeName: data.recipeName,
+      date: data.date,
+      status: data.status as 'completed' | 'scheduled' | 'active',
+      prepTime: 0,
+      cookTime: 0,
+      rating: 0,
+      notes: '',
+    }, token);
+    const withRow: SessionWithRow = {
+      ...created,
+      sheetRow: sessions.value.length + 2,
+    };
+    sessions.value = [...sessions.value, withRow];
+    showToast('Cook created', 'success');
+    return withRow;
+  } catch (err) {
+    if (isReauthFailure(err)) throw err;
+    showToast('Failed to create cook', 'error');
+    throw err;
+  }
+}
+
+export async function editSession(
+  session: SessionWithRow,
+  token: string,
+): Promise<void> {
+  try {
+    await updateSessionApi(session.sheetRow, session, token);
+    sessions.value = sessions.value.map(s => s.id === session.id ? session : s);
+    showToast('Cook updated', 'success');
+  } catch (err) {
+    if (isReauthFailure(err)) throw err;
+    showToast('Failed to update cook', 'error');
+    throw err;
+  }
+}
+
+export async function removeSession(
+  session: SessionWithRow,
+  token: string,
+): Promise<void> {
+  try {
+    await deleteSessionApi(session.sheetRow, token);
+    const fresh = await fetchSessions(token);
+    sessions.value = fresh;
+    showToast('Cook deleted', 'success');
+  } catch (err) {
+    if (isReauthFailure(err)) throw err;
+    showToast('Failed to delete cook', 'error');
     throw err;
   }
 }

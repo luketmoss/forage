@@ -3,7 +3,7 @@ import { navigate } from '../../router/router';
 import { hydratedRecipes, getLastSessionForRecipe } from '../../state/store';
 import { LabelBadge } from '../shared/label-badge';
 import { AddRecipeSheet } from '../shared/add-recipe-sheet';
-import { formatTime } from '../../mock-data';
+import { formatTime } from '../../shared/utils';
 
 const SOURCE_ICONS: Record<string, string> = {
   manual: '✏️',

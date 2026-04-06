@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'preact/hooks';
 import { getHydratedRecipe } from '../../state/store';
-import { formatTimerDisplay } from '../../mock-data';
+import { formatTimerDisplay } from '../../shared/utils';
 
 interface SessionFlowProps {
   recipeId: string;
