@@ -12,6 +12,7 @@ import { getLabelColor } from '../../api/label-colors';
 import { getWeekDays, getWeekStats, groupSessionsByWeek, toLocalDateStr, formatTime } from '../../shared/utils';
 import { LabelBadge } from '../shared/label-badge';
 import { AddRecipeSheet } from '../shared/add-recipe-sheet';
+import { ShoppingSheet } from './shopping-sheet';
 
 function pluralMeal(n: number): string {
   return `${n} ${n === 1 ? 'meal' : 'meals'}`;
@@ -517,90 +518,4 @@ function PendingSessionSheet({ session, onClose }: { session: SessionWithRow; on
   );
 }
 
-// ===== Shopping Trip Planner =====
-function ShoppingSheet({ onClose }: { onClose: () => void }) {
-  const [step, setStep] = useState<'dates' | 'review' | 'done'>('dates');
-  const [shopDate, setShopDate] = useState('2026-04-06');
-  const [throughDate, setThroughDate] = useState('2026-04-10');
-  const [included, setIncluded] = useState<Record<string, boolean>>({});
-
-  const scheduled = sessionsSignal.value.filter(s => s.status === 'scheduled' && s.date >= shopDate && s.date <= throughDate);
-
-  interface ShoppingItem { name: string; totalQty: number; unit: string; recipes: { name: string; date: string; qty: number }[] }
-
-  const itemMap = new Map<string, ShoppingItem>();
-  for (const session of scheduled) {
-    const recipe = recipesSignal.value.find(r => r.id === session.recipe_id);
-    if (!recipe) continue;
-    const ings = riSignal.value.filter(ri => ri.recipe_id === recipe.id);
-    for (const ing of ings) {
-      const key = ing.ingredient_id;
-      if (!itemMap.has(key)) itemMap.set(key, { name: ing.ingredientName, totalQty: 0, unit: ing.unit, recipes: [] });
-      const item = itemMap.get(key)!;
-      item.totalQty += ing.quantity;
-      item.recipes.push({ name: recipe.name, date: session.date, qty: ing.quantity });
-    }
-  }
-
-  const shoppingItems = Array.from(itemMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-  const selectedCount = Object.values(included).filter(Boolean).length;
-
-  return (
-    <div class="modal-overlay" onClick={onClose}>
-      <div class="modal-content" onClick={e => e.stopPropagation()}>
-        <div class="modal-handle" />
-        <div class="modal-header">
-          <h2>🛒 Shopping Trip</h2>
-          <button class="btn-icon" onClick={onClose} aria-label="Close">✕</button>
-        </div>
-        {step === 'dates' && (
-          <div>
-            <div class="form-group">
-              <label class="form-label">Shopping Date</label>
-              <input type="date" class="form-input" value={shopDate} onInput={e => setShopDate((e.target as HTMLInputElement).value)} />
-            </div>
-            <div class="form-group">
-              <label class="form-label">Plan meals through</label>
-              <input type="date" class="form-input" value={throughDate} onInput={e => setThroughDate((e.target as HTMLInputElement).value)} />
-            </div>
-            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-md)' }}>
-              {scheduled.length} scheduled {scheduled.length === 1 ? 'meal' : 'meals'} in this range
-            </p>
-            <button class="btn btn-primary btn-block" onClick={() => { const init: Record<string, boolean> = {}; shoppingItems.forEach(item => { init[item.name] = true; }); setIncluded(init); setStep('review'); }} disabled={scheduled.length === 0}>
-              Review Ingredients
-            </button>
-          </div>
-        )}
-        {step === 'review' && (
-          <div>
-            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-md)' }}>{selectedCount} of {shoppingItems.length} items selected</p>
-            {shoppingItems.map(item => (
-              <div class="shopping-item" key={item.name}>
-                <div class="shopping-check"><input type="checkbox" checked={included[item.name] ?? true} onChange={() => setIncluded(prev => ({ ...prev, [item.name]: !prev[item.name] }))} /></div>
-                <div class="shopping-item-body">
-                  <div class="shopping-item-name">{item.name}</div>
-                  <div class="shopping-item-qty">{item.totalQty} {item.unit}</div>
-                  <div class="shopping-item-recipes">{item.recipes.map(r => `${r.name} (${r.date.split('-').slice(1).join('/')})`).join(' · ')}</div>
-                </div>
-              </div>
-            ))}
-            <div style={{ display: 'flex', gap: 'var(--space-sm)', marginTop: 'var(--space-lg)' }}>
-              <button class="btn btn-secondary" style={{ flex: 1 }} onClick={() => setStep('dates')}>Back</button>
-              <button class="btn btn-primary" style={{ flex: 1 }} onClick={() => setStep('done')}>Export to Hive</button>
-            </div>
-          </div>
-        )}
-        {step === 'done' && (
-          <div style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
-            <div style={{ fontSize: '3rem', marginBottom: 'var(--space-md)' }}>✅</div>
-            <h3 style={{ marginBottom: 'var(--space-sm)' }}>Shopping list exported!</h3>
-            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-lg)' }}>
-              Created "Grocery Store" task in Hive with {selectedCount} items, due {new Date(shopDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.
-            </p>
-            <button class="btn btn-primary btn-block" onClick={onClose}>Done</button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+// ShoppingSheet is now in ./shopping-sheet.tsx
