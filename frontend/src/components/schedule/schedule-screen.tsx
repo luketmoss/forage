@@ -9,10 +9,10 @@ import {
   getSessionLabels,
   toLocalDateStr,
   formatTime,
-  getLabelColor,
-  mockLabels,
   type CookingSession,
 } from '../../mock-data';
+import { labels as labelsSignal } from '../../state/store';
+import { getLabelColor } from '../../api/label-colors';
 import { LabelBadge } from '../shared/label-badge';
 import { AddRecipeSheet } from '../shared/add-recipe-sheet';
 
@@ -164,7 +164,7 @@ export function ScheduleScreen() {
         <div class="filter-bar">
           <div class="filter-row">
             {availableLabels.map(name => {
-              const label = mockLabels.find(l => l.name === name);
+              const label = labelsSignal.value.find(l => l.name === name);
               const color = getLabelColor(label?.colorKey ?? 'gray');
               return (
                 <button
@@ -372,7 +372,7 @@ export function ScheduleScreen() {
                 {allRecipeLabels.length > 0 && (
                   <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: 'var(--space-sm)' }}>
                     {allRecipeLabels.map(name => {
-                      const label = mockLabels.find(l => l.name === name);
+                      const label = labelsSignal.value.find(l => l.name === name);
                       const color = getLabelColor(label?.colorKey ?? 'gray');
                       return (
                         <button

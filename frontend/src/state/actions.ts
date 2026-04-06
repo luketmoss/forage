@@ -11,7 +11,13 @@ import {
   updateIngredient as updateIngredientApi,
   deleteIngredient as deleteIngredientApi,
 } from '../api/ingredients-api';
-import type { IngredientWithRow } from '../api/types';
+import {
+  fetchLabels,
+  createLabel,
+  updateLabel as updateLabelApi,
+  deleteLabel as deleteLabelApi,
+} from '../api/labels-api';
+import type { IngredientWithRow, LabelWithRow } from '../api/types';
 import { ReauthFailedError } from '../auth/reauth';
 import {
   recipes,
@@ -40,16 +46,17 @@ export async function loadInitialData(token: string): Promise<void> {
       sessions.value = [...DEMO_SESSIONS];
       labels.value = [...DEMO_LABELS];
     } else {
-      // Fetch ingredients from Sheets (others still use demo data for now)
-      const [fetchedIngredients] = await Promise.all([
+      // Fetch from Sheets (others still use demo data for now)
+      const [fetchedIngredients, fetchedLabels] = await Promise.all([
         fetchIngredients(token),
+        fetchLabels(token),
       ]);
       ingredients.value = fetchedIngredients;
+      labels.value = fetchedLabels;
 
       // TODO: Wire these to Sheets API as each feature is built
       recipes.value = [...DEMO_RECIPES];
       sessions.value = [...DEMO_SESSIONS];
-      labels.value = [...DEMO_LABELS];
     }
   } catch (err) {
     console.error('Failed to load data:', err);
@@ -111,6 +118,86 @@ export async function removeIngredient(
   } catch (err) {
     if (isReauthFailure(err)) throw err;
     showToast('Failed to delete ingredient', 'error');
+    throw err;
+  }
+}
+
+// ── Labels ───────────────────────────────────────────────────────────
+
+export async function addLabel(
+  data: { name: string; colorKey: string },
+  token: string,
+): Promise<LabelWithRow> {
+  try {
+    const created = await createLabel(data, token);
+    const withRow: LabelWithRow = {
+      ...created,
+      sheetRow: labels.value.length + 2,
+    };
+    labels.value = [...labels.value, withRow];
+    showToast('Label created', 'success');
+    return withRow;
+  } catch (err) {
+    if (isReauthFailure(err)) throw err;
+    showToast('Failed to create label', 'error');
+    throw err;
+  }
+}
+
+export async function editLabel(
+  label: LabelWithRow,
+  oldName: string,
+  token: string,
+): Promise<void> {
+  try {
+    await updateLabelApi(label.sheetRow, label, token);
+    labels.value = labels.value.map(l => l.id === label.id ? label : l);
+
+    // Cascade name change to recipes (labels stored as comma-separated string)
+    if (oldName !== label.name) {
+      recipes.value = recipes.value.map(r => {
+        const recipeLabels = r.labels.split(',').filter(Boolean);
+        if (recipeLabels.includes(oldName)) {
+          const updated = recipeLabels.map(l => l === oldName ? label.name : l);
+          return { ...r, labels: updated.join(',') };
+        }
+        return r;
+      });
+    }
+
+    showToast('Label updated', 'success');
+  } catch (err) {
+    if (isReauthFailure(err)) throw err;
+    showToast('Failed to update label', 'error');
+    throw err;
+  }
+}
+
+export async function removeLabel(
+  label: LabelWithRow,
+  token: string,
+): Promise<void> {
+  try {
+    await deleteLabelApi(label.sheetRow, token);
+
+    // Re-fetch for correct sheetRows
+    const fresh = await fetchLabels(token);
+    labels.value = fresh;
+
+    // Cascade remove from recipes
+    recipes.value = recipes.value.map(r => {
+      const recipeLabels = r.labels.split(',').filter(Boolean);
+      if (recipeLabels.includes(label.name)) {
+        const updated = recipeLabels.filter(l => l !== label.name);
+        return { ...r, labels: updated.join(',') };
+      }
+      return r;
+    });
+
+    showToast('Label deleted', 'success');
+  } catch (err) {
+    if (isReauthFailure(err)) throw err;
+    showToast('Failed to delete label', 'error');
     throw err;
   }
 }

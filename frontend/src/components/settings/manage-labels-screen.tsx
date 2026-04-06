@@ -1,42 +1,61 @@
 import { useState } from 'preact/hooks';
 import { navigate } from '../../router/router';
-import { mockLabels, LABEL_COLORS, COLOR_KEYS, getLabelColor, mockRecipes, type Label } from '../../mock-data';
+import { useAuth } from '../../auth/auth-context';
+import { labels, labelUsageCount } from '../../state/store';
+import { addLabel, editLabel, removeLabel } from '../../state/actions';
+import { LABEL_COLORS, COLOR_KEYS, getLabelColor } from '../../api/label-colors';
+import type { LabelWithRow } from '../../api/types';
 
 export function ManageLabelsScreen() {
-  const [editingLabel, setEditingLabel] = useState<Label | null>(null);
+  const { token } = useAuth();
+  const [editingLabel, setEditingLabel] = useState<LabelWithRow | null>(null);
   const [editName, setEditName] = useState('');
   const [editColor, setEditColor] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState('green');
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<Label | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<LabelWithRow | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  function getUsageCount(labelName: string): number {
-    return mockRecipes.filter(r => r.labels.includes(labelName)).length;
-  }
+  const allLabels = labels.value;
 
-  function openEdit(label: Label) {
+  function openEdit(label: LabelWithRow) {
     setEditingLabel(label);
     setEditName(label.name);
     setEditColor(label.colorKey);
   }
 
-  function saveEdit() {
-    // In real app: update via API, cascade rename to recipes
-    setEditingLabel(null);
+  async function saveEdit() {
+    if (!token || !editingLabel || !editName.trim()) return;
+    setSaving(true);
+    try {
+      const oldName = editingLabel.name;
+      await editLabel({ ...editingLabel, name: editName.trim(), colorKey: editColor }, oldName, token);
+      setEditingLabel(null);
+    } catch { /* toast */ }
+    setSaving(false);
   }
 
-  function handleCreate() {
-    if (!newName.trim()) return;
-    // In real app: create via API
-    setNewName('');
-    setNewColor('green');
-    setShowCreate(false);
+  async function handleCreate() {
+    if (!token || !newName.trim()) return;
+    setSaving(true);
+    try {
+      await addLabel({ name: newName.trim(), colorKey: newColor }, token);
+      setNewName('');
+      setNewColor('green');
+      setShowCreate(false);
+    } catch { /* toast */ }
+    setSaving(false);
   }
 
-  function confirmDelete() {
-    // In real app: delete via API, remove from all recipes
-    setShowDeleteConfirm(null);
+  async function confirmDelete() {
+    if (!token || !showDeleteConfirm) return;
+    setSaving(true);
+    try {
+      await removeLabel(showDeleteConfirm, token);
+      setShowDeleteConfirm(null);
+    } catch { /* toast */ }
+    setSaving(false);
   }
 
   return (
@@ -49,19 +68,18 @@ export function ManageLabelsScreen() {
       </div>
 
       {/* Label List */}
-      {mockLabels.length === 0 ? (
+      {allLabels.length === 0 ? (
         <div class="empty-state">
           <p>No labels yet</p>
           <p>Create labels to organize your recipes</p>
         </div>
       ) : (
         <div>
-          {mockLabels.map(label => {
+          {allLabels.map(label => {
             const color = getLabelColor(label.colorKey);
-            const usage = getUsageCount(label.name);
+            const usage = labelUsageCount(label.name);
             return (
               <div key={label.id} class="settings-row" style={{ gap: 'var(--space-md)' }}>
-                {/* Color swatch */}
                 <div
                   style={{
                     width: '24px',
@@ -72,14 +90,12 @@ export function ManageLabelsScreen() {
                     flexShrink: 0,
                   }}
                 />
-                {/* Name + usage */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>{label.name}</span>
                   <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginLeft: 'var(--space-sm)' }}>
                     {usage} {usage === 1 ? 'recipe' : 'recipes'}
                   </span>
                 </div>
-                {/* Actions */}
                 <div style={{ display: 'flex', gap: '2px' }}>
                   <button class="btn-icon" onClick={() => openEdit(label)} aria-label={`Edit ${label.name}`} style={{ width: '36px', height: '36px' }}>
                     ✎
@@ -115,7 +131,9 @@ export function ManageLabelsScreen() {
           </div>
           <div class="confirm-modal-actions">
             <button class="btn btn-secondary" onClick={() => setShowCreate(false)}>Cancel</button>
-            <button class="btn btn-primary" onClick={handleCreate} disabled={!newName.trim()}>Save</button>
+            <button class="btn btn-primary" onClick={handleCreate} disabled={!newName.trim() || saving}>
+              {saving ? 'Saving...' : 'Save'}
+            </button>
           </div>
         </div>
       ) : (
@@ -139,14 +157,7 @@ export function ManageLabelsScreen() {
             </div>
             <div class="form-group">
               <label class="form-label">Name</label>
-              <input
-                type="text"
-                class="form-input"
-                value={editName}
-                onInput={e => setEditName((e.target as HTMLInputElement).value)}
-                autoFocus
-                maxLength={30}
-              />
+              <input type="text" class="form-input" value={editName} onInput={e => setEditName((e.target as HTMLInputElement).value)} autoFocus maxLength={30} />
             </div>
             <div class="form-group">
               <label class="form-label">Color</label>
@@ -154,7 +165,9 @@ export function ManageLabelsScreen() {
             </div>
             <div class="confirm-modal-actions">
               <button class="btn btn-secondary" onClick={() => setEditingLabel(null)}>Cancel</button>
-              <button class="btn btn-primary" onClick={saveEdit} disabled={!editName.trim()}>Save</button>
+              <button class="btn btn-primary" onClick={saveEdit} disabled={!editName.trim() || saving}>
+                {saving ? 'Saving...' : 'Save'}
+              </button>
             </div>
           </div>
         </div>
@@ -171,7 +184,7 @@ export function ManageLabelsScreen() {
             </div>
             <p style={{ marginBottom: 'var(--space-lg)' }}>
               {(() => {
-                const usage = getUsageCount(showDeleteConfirm.name);
+                const usage = labelUsageCount(showDeleteConfirm.name);
                 if (usage > 0) {
                   return <>This label is used by <strong>{usage} {usage === 1 ? 'recipe' : 'recipes'}</strong>. It will be removed from all of them.</>;
                 }
@@ -180,7 +193,9 @@ export function ManageLabelsScreen() {
             </p>
             <div class="confirm-modal-actions">
               <button class="btn btn-secondary" onClick={() => setShowDeleteConfirm(null)}>Cancel</button>
-              <button class="btn btn-danger" onClick={confirmDelete}>Delete</button>
+              <button class="btn btn-danger" onClick={confirmDelete} disabled={saving}>
+                {saving ? 'Deleting...' : 'Delete'}
+              </button>
             </div>
           </div>
         </div>

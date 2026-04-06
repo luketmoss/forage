@@ -1,6 +1,10 @@
 import { useState } from 'preact/hooks';
 import { navigate } from '../../router/router';
-import { mockLabels, LABEL_COLORS, COLOR_KEYS, getLabelColor, type Label } from '../../mock-data';
+import { useAuth } from '../../auth/auth-context';
+import { labels } from '../../state/store';
+import { addLabel, editLabel, removeLabel } from '../../state/actions';
+import { LABEL_COLORS, COLOR_KEYS, getLabelColor } from '../../api/label-colors';
+import type { LabelWithRow } from '../../api/types';
 
 interface LabelPickerProps {
   selected: string[];
@@ -8,31 +12,47 @@ interface LabelPickerProps {
 }
 
 export function LabelPicker({ selected, onToggle }: LabelPickerProps) {
+  const { token } = useAuth();
   const [mode, setMode] = useState<'select' | 'manage'>('select');
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState('green');
-  const [editingLabel, setEditingLabel] = useState<Label | null>(null);
+  const [editingLabel, setEditingLabel] = useState<LabelWithRow | null>(null);
   const [editName, setEditName] = useState('');
   const [editColor, setEditColor] = useState('');
 
-  function handleCreate() {
-    if (!newName.trim()) return;
-    // In real app, would create via API
-    setNewName('');
-    setNewColor('green');
-    setShowCreate(false);
+  const allLabels = labels.value;
+
+  async function handleCreate() {
+    if (!token || !newName.trim()) return;
+    try {
+      await addLabel({ name: newName.trim(), colorKey: newColor }, token);
+      setNewName('');
+      setNewColor('green');
+      setShowCreate(false);
+    } catch { /* toast shown by action */ }
   }
 
-  function openEdit(label: Label) {
+  function openEdit(label: LabelWithRow) {
     setEditingLabel(label);
     setEditName(label.name);
     setEditColor(label.colorKey);
   }
 
-  function saveEdit() {
-    // In real app, would update via API
-    setEditingLabel(null);
+  async function saveEdit() {
+    if (!token || !editingLabel || !editName.trim()) return;
+    try {
+      const oldName = editingLabel.name;
+      await editLabel({ ...editingLabel, name: editName.trim(), colorKey: editColor }, oldName, token);
+      setEditingLabel(null);
+    } catch { /* toast shown by action */ }
+  }
+
+  async function handleDelete(label: LabelWithRow) {
+    if (!token) return;
+    try {
+      await removeLabel(label, token);
+    } catch { /* toast shown by action */ }
   }
 
   return (
@@ -52,7 +72,7 @@ export function LabelPicker({ selected, onToggle }: LabelPickerProps) {
 
       {/* Label Grid */}
       <div class="label-chip-grid">
-        {mockLabels.map(label => {
+        {allLabels.map(label => {
           const isSelected = selected.includes(label.name);
           const color = getLabelColor(label.colorKey);
 
@@ -74,7 +94,7 @@ export function LabelPicker({ selected, onToggle }: LabelPickerProps) {
                   <button class="btn-icon" onClick={() => openEdit(label)} aria-label={`Edit ${label.name}`} style={{ width: '28px', height: '28px', fontSize: 'var(--text-xs)' }}>
                     ✎
                   </button>
-                  <button class="btn-icon" aria-label={`Delete ${label.name}`} style={{ width: '28px', height: '28px', fontSize: 'var(--text-xs)', color: 'var(--color-danger)' }}>
+                  <button class="btn-icon" onClick={() => handleDelete(label)} aria-label={`Delete ${label.name}`} style={{ width: '28px', height: '28px', fontSize: 'var(--text-xs)', color: 'var(--color-danger)' }}>
                     ✕
                   </button>
                 </div>
@@ -157,7 +177,7 @@ export function LabelPicker({ selected, onToggle }: LabelPickerProps) {
             </div>
             <div class="confirm-modal-actions">
               <button class="btn btn-secondary" onClick={() => setEditingLabel(null)}>Cancel</button>
-              <button class="btn btn-primary" onClick={saveEdit}>Save</button>
+              <button class="btn btn-primary" onClick={saveEdit} disabled={!editName.trim()}>Save</button>
             </div>
           </div>
         </div>

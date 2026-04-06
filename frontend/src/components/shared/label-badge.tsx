@@ -1,4 +1,5 @@
-import { mockLabels, getLabelColor } from '../../mock-data';
+import { labels } from '../../state/store';
+import { getLabelColor } from '../../api/label-colors';
 
 interface LabelBadgeProps {
   name: string;
@@ -7,7 +8,7 @@ interface LabelBadgeProps {
 }
 
 export function LabelBadge({ name, onClick, active }: LabelBadgeProps) {
-  const label = mockLabels.find(l => l.name === name);
+  const label = labels.value.find(l => l.name === name);
   const color = getLabelColor(label?.colorKey ?? 'gray');
 
   const style = {
