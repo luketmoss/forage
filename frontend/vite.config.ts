@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [preact()],
   base: '/forage/',
   test: {
-    environment: 'jsdom',
-    setupFiles: ['./src/test-setup.ts'],
+    environment: 'node',
+    setupFiles: [],
   },
 });
