@@ -4,6 +4,7 @@ import { useAuth } from './auth/auth-context';
 import { LoginScreen } from './auth/login-screen';
 import { BottomNav } from './components/shared/bottom-nav';
 import { Toast } from './components/shared/toast';
+import { SwUpdate } from './components/shared/sw-update';
 import { loadInitialData } from './state/actions';
 import { loading } from './state/store';
 import { currentRoute } from './router/router';
@@ -85,6 +86,7 @@ function AppContent() {
     <>
       {isAuthenticated ? <AuthenticatedApp /> : <LoginScreen />}
       <Toast />
+      <SwUpdate />
     </>
   );
 }
