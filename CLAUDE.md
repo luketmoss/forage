@@ -90,7 +90,7 @@ These decisions were made with the user and must be respected by all agents:
 
 When the user's request matches a custom skill, invoke it automatically:
 - Bug report, feature idea, or new request → `/idea`
-- UX or accessibility audit → `/ux`
+- UX review (usability, flow efficiency, mobile design) → `/ux`
 - CI/CD or deployment issue → `/devops`
 
 **When the user references an issue number**, always start the Full Pipeline.
@@ -98,6 +98,28 @@ When the user's request matches a custom skill, invoke it automatically:
 ## Pipeline Orchestration
 
 **You (the main Claude instance) are the orchestrator.** You invoke skills in order, pass results between them, and ensure no step is skipped.
+
+### Board Movement (for orchestrator use)
+
+GitHub Project #5 (Forage). Never call `gh project list` or `gh project field-list` — IDs are hardcoded.
+
+```bash
+# Get item ID for an issue
+gh project item-list 5 --owner luketmoss --limit 100 --format json --jq '.items[] | select(.content.number == <ISSUE_NUMBER>) | .id'
+# Move to a column
+gh api graphql -f query='mutation { updateProjectV2ItemFieldValue(input: { projectId: "PVT_kwHOAJR9ys4BT5st" itemId: "ITEM_ID" fieldId: "PVTSSF_lAHOAJR9ys4BT5stzhBFaEI" value: { singleSelectOptionId: "OPTION_ID" } }) { projectV2Item { id } } }'
+```
+
+| Column | Option ID |
+|--------|-----------|
+| To Do | `2ed3c08e` |
+| PM Refining | `60b38b8d` |
+| UX | `0c810f0f` |
+| Refined | `9e0d0478` |
+| In Development | `cedf160f` |
+| Testing | `1bd1ca27` |
+| Code Review | `2e7d4fd2` |
+| Done | `2aaa3a20` |
 
 ### Refinement Pipeline
 1. Move issue to **PM Refining**. Invoke `/pm` with the issue number.
