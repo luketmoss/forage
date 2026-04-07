@@ -1,4 +1,5 @@
 import { isDemo } from '../api/demo-data';
+import { ensureSheetTabs } from '../api/sheet-init';
 import {
   DEMO_RECIPES,
   DEMO_INGREDIENTS,
@@ -57,6 +58,9 @@ export async function loadInitialData(token: string): Promise<void> {
   loading.value = true;
 
   try {
+    // Ensure sheet tabs exist (creates missing tabs on first run; skipped in demo)
+    await ensureSheetTabs(token);
+
     if (isDemo()) {
       recipes.value = [...DEMO_RECIPES];
       ingredients.value = [...DEMO_INGREDIENTS];
