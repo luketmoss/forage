@@ -2011,3 +2011,243 @@ button.label-badge:hover {
   outline: 3px solid var(--color-primary-focus-ring);
   outline-offset: 2px;
 }
+
+/* ===== Import Feature ===== */
+
+.import-error-banner {
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+  color: var(--color-danger);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-md);
+  border-left: 3px solid var(--color-danger);
+}
+
+/* Review modal — taller to fit tabs */
+.import-review-modal {
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.import-review-content {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.import-review-footer {
+  padding: var(--space-md) 0 0;
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+/* Ingredient match rows */
+.import-ingredient-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--color-border-light);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.import-ingredient-row:hover {
+  background: var(--overlay-xs);
+}
+
+.import-ingredient-row:last-child {
+  border-bottom: none;
+}
+
+/* Match tier visual indicators */
+.import-match-auto {
+  border-left: 3px solid var(--color-success);
+}
+
+.import-match-suggest {
+  border-left: 3px solid #f59e0b;
+}
+
+.import-match-new {
+  border-left: 3px dashed var(--color-border);
+}
+
+.import-match-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.match-icon-auto {
+  color: var(--color-success);
+}
+
+.match-icon-suggest {
+  color: #f59e0b;
+}
+
+.match-icon-new {
+  color: var(--color-text-muted);
+}
+
+.import-new-badge {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  background: var(--overlay-xs);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+/* Ingredient match picker */
+.import-match-picker {
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  margin: 0 var(--space-md) var(--space-sm);
+}
+
+.import-match-option {
+  display: block;
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  color: var(--color-text);
+  font-family: inherit;
+}
+
+.import-match-option:hover {
+  background: var(--overlay-xs);
+}
+
+.import-match-option.active {
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* Step drag-and-drop */
+.import-step-list {
+  list-style: none;
+  padding: 0;
+  counter-reset: none;
+}
+
+.import-step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--color-border-light);
+  transition: background var(--transition-fast);
+}
+
+.import-step-item.drag-over {
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  border-top: 2px solid var(--color-primary);
+}
+
+.import-step-item:last-child {
+  border-bottom: none;
+}
+
+.import-drag-handle {
+  width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+  letter-spacing: 2px;
+  flex-shrink: 0;
+  user-select: none;
+  touch-action: none;
+}
+
+.import-drag-handle:active {
+  cursor: grabbing;
+}
+
+.import-step-textarea {
+  flex: 1;
+  min-height: 44px;
+  resize: vertical;
+}
+
+.import-step-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.import-step-move,
+.import-step-delete {
+  width: 32px;
+  height: 32px;
+  font-size: var(--text-sm);
+}
+
+.import-step-delete {
+  color: var(--color-danger);
+}
+
+/* Context menu for step move */
+.import-context-menu {
+  position: fixed;
+  z-index: 400;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+}
+
+.import-context-option {
+  display: block;
+  width: 100%;
+  padding: var(--space-sm) var(--space-lg);
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  color: var(--color-text);
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.import-context-option:hover {
+  background: var(--overlay-xs);
+}
+
+/* Prompt editor in Settings */
+.import-prompt-editor {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  min-height: 200px;
+  resize: vertical;
+}
+
+@media (min-width: 480px) {
+  .import-review-modal {
+    max-height: 80vh;
+  }
+}
