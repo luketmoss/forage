@@ -93,11 +93,33 @@ When the user's request matches a custom skill, invoke it automatically:
 - UX review (usability, flow efficiency, mobile design) → `/ux`
 - CI/CD or deployment issue → `/devops`
 
-**When the user references an issue number**, always start the Full Pipeline.
+**When the user references an issue number**, classify its tier (check for existing `tier:*` label first), confirm with user, then run the appropriate pipeline.
 
 ## Pipeline Orchestration
 
 **You (the main Claude instance) are the orchestrator.** You invoke skills in order, pass results between them, and ensure no step is skipped.
+
+### Tier Classification
+
+After `/idea` creates an issue (or when the user references an existing issue), classify it:
+
+| Tier | Label | Criteria |
+|------|-------|----------|
+| Tier 1: Quick Fix | `tier:1-quickfix` | Typo, 1-line fix, config tweak, small bug with obvious fix, chore, no UI change |
+| Tier 2: Standard | `tier:2-standard` | Well-understood feature/enhancement, bug with clear repro, moderate scope |
+| Tier 3: Design-First | `tier:3-complex` | New feature, architectural change, UX-heavy, multiple valid approaches, large scope |
+
+**Heuristics:**
+- Tier 1: `bug` + small scope, `chore:` prefix, typo/rename/config in title, 1-2 files affected
+- Tier 3: `feature` type, touches data model/architecture, description mentions multiple approaches, large scope
+- Tier 2: everything else (default)
+
+**Apply label + confirm:**
+```bash
+gh issue edit <N> --repo luketmoss/forage --add-label "tier:X-..."
+```
+Tell the user: "Classified as **Tier X** (<reason>). Proceed, or override? [1/2/3]"
+Wait for confirmation before proceeding.
 
 ### Board Movement (for orchestrator use)
 
@@ -112,27 +134,45 @@ gh api graphql -f query='mutation { updateProjectV2ItemFieldValue(input: { proje
 
 | Column | Option ID |
 |--------|-----------|
-| To Do | `2ed3c08e` |
-| PM Refining | `60b38b8d` |
-| UX | `0c810f0f` |
-| Refined | `9e0d0478` |
-| In Development | `cedf160f` |
-| Testing | `1bd1ca27` |
-| Code Review | `2e7d4fd2` |
-| Done | `2aaa3a20` |
+| To Do | `a5ac6852` |
+| PM Refining | `f0b30dac` |
+| Planning | `acc61997` |
+| UX | `e6ccdf41` |
+| Refined | `97abae7d` |
+| In Development | `63854c87` |
+| Testing | `b53a739f` |
+| Code Review | `1e174bf7` |
+| Done | `942bbd5a` |
 
-### Refinement Pipeline
-1. Move issue to **PM Refining**. Invoke `/pm` with the issue number.
-2. Move issue to **UX**. Invoke `/ux` with the issue number and ACs.
-3. Invoke `/pm` again with UX findings (accept/defer/reject).
-4. Move issue to **Refined**.
-5. Present final ACs to user (design gate).
+### Tier 1: Quick Fix Pipeline
+1. `/idea` (if not already created)
+2. Move to **In Development**. Invoke `/dev` with issue number.
+3. Move to **Code Review**. Invoke `/review` with issue number.
+4. **Auto-merge**: Approve + squash-merge + delete branch + move to **Done**.
 
-### Dev Pipeline
-1. **Dev**: Invoke `/dev` with the issue number.
-2. **QA**: Invoke `/qa` with the issue number.
-3. **Code Review**: Invoke `/review` with the issue number.
-4. **Auto-merge**: Approve + squash-merge + delete branch + move to Done.
+### Tier 2: Standard Pipeline
+1. `/idea` (if not already created)
+2. Move to **PM Refining**. Invoke `/pm` with issue number.
+3. **If PM technical notes reference UI components:** Move to **UX**. Invoke `/ux`. Invoke `/pm` again with UX findings.
+4. Move to **Refined**. Present final ACs to user (design gate).
+5. Invoke `/dev` with issue number.
+6. Invoke `/qa` with issue number.
+7. Invoke `/review` with issue number.
+8. **Auto-merge**: Approve + squash-merge + delete branch + move to **Done**.
+
+### Tier 3: Design-First Pipeline
+1. `/idea` (if not already created)
+2. Move to **PM Refining**. Invoke `/pm` with issue number.
+3. Move to **Planning**. Invoke `/plan` with issue number.
+4. Present design options to user. Wait for user to pick an approach.
+5. Update issue body with chosen approach: `gh issue edit <N> --body "..."` (add `## Chosen Approach` section).
+6. Move to **UX**. Invoke `/ux` with issue number.
+7. Invoke `/pm` again with UX findings + chosen approach.
+8. Move to **Refined**. Present final ACs to user (design gate).
+9. Invoke `/dev` with issue number.
+10. Invoke `/qa` with issue number.
+11. Invoke `/review` with issue number.
+12. **Auto-merge**: Approve + squash-merge + delete branch + move to **Done**.
 
 ### Conflict Resolution
 2 attempts per failing stage max. After 2 failures, stop and tell the user.

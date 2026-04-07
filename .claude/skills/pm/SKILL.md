@@ -28,18 +28,19 @@ gh api graphql -f query='mutation { updateProjectV2ItemFieldValue(input: { proje
 
 | Column | Option ID |
 |--------|-----------|
-| PM Refining | `60b38b8d` |
-| Refined | `9e0d0478` |
+| PM Refining | `f0b30dac` |
+| Refined | `97abae7d` |
 
 ## Process
 
 1. **Read issue:** `gh issue view <N> --repo luketmoss/forage`
 2. **Do NOT move the issue** — the orchestrator handles all column moves
 3. **Explore codebase** — read relevant source files (`frontend/src/components/`, `frontend/src/state/`, `frontend/src/api/`) to understand current behavior before writing requirements
-4. **Write 2-5 BDD acceptance criteria** (Given/When/Then). Cover happy path, alternate paths, edge cases. If adding new Sheets tabs/columns, include an `api/sheet-init.ts` update AC
-5. **Define scope** — explicitly state in-scope and out-of-scope
-6. **Add technical notes** — affected files, complexity (small/medium/large), dependencies
-7. **Update issue body** via `gh issue edit` with this structure:
+4. **If a Chosen Approach section exists in the issue body** (from the planning phase), write ACs that specifically validate that approach
+5. **Write 2-5 BDD acceptance criteria** (Given/When/Then). Cover happy path, alternate paths, edge cases. If adding new Sheets tabs/columns, include an `api/sheet-init.ts` update AC
+6. **Define scope** — explicitly state in-scope and out-of-scope
+7. **Add technical notes** — affected files, complexity (small/medium/large), dependencies
+8. **Update issue body** via `gh issue edit` with this structure:
 
 ```markdown
 ## Summary

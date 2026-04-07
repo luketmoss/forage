@@ -28,7 +28,7 @@ gh api graphql -f query='mutation { updateProjectV2ItemFieldValue(input: { proje
 
 | Column | Option ID |
 |--------|-----------|
-| To Do | `2ed3c08e` |
+| To Do | `a5ac6852` |
 
 ## Process
 
@@ -48,6 +48,8 @@ gh issue create --repo luketmoss/forage --title "<type>: <title>" --label "<type
 ## Expected Behavior
 ## Actual Behavior (bugs only)
 ## Possible Approach
+## Suggested Tier
+Tier X — <one-line reason>
 ---
 *Triaged by Idea Agent*
 EOF

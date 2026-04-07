@@ -32,13 +32,13 @@ gh api graphql -f query='mutation { updateProjectV2ItemFieldValue(input: { proje
 
 | Column | Option ID |
 |--------|-----------|
-| In Development | `cedf160f` |
-| Testing | `1bd1ca27` |
-| Done | `2aaa3a20` |
+| In Development | `63854c87` |
+| Testing | `b53a739f` |
+| Done | `942bbd5a` |
 
 ## Process
 
-1. **Read issue:** `gh issue view <N> --repo luketmoss/forage` → extract ACs and technical notes
+1. **Read issue:** `gh issue view <N> --repo luketmoss/forage` → extract ACs and technical notes. For Tier 1 quick-fix issues without formal ACs, infer expected behavior from the issue description and write a focused test covering the fix
 2. **Move to In Development** using board movement helper
 3. **Branch:** `git checkout -b feature/<N>-<short-desc>` (or `fix/`, `chore/`, `enhancement/`)
 4. **Read existing code** identified in technical notes — learn patterns from actual source files before writing

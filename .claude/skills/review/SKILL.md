@@ -28,8 +28,8 @@ gh api graphql -f query='mutation { updateProjectV2ItemFieldValue(input: { proje
 
 | Column | Option ID |
 |--------|-----------|
-| In Development | `cedf160f` |
-| Done | `2aaa3a20` |
+| In Development | `63854c87` |
+| Done | `942bbd5a` |
 
 ## Conventions (violations = blocking)
 
