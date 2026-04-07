@@ -95,3 +95,22 @@ export interface CookingSession {
 export interface SessionWithRow extends CookingSession {
   sheetRow: number;
 }
+
+// ===== AI Import =====
+
+/** Raw ingredient from AI extraction (before matching to library). */
+export interface ImportedIngredient {
+  name: string;
+  quantity: number;
+  unit: string;
+}
+
+/** Full recipe as returned by the import Worker. */
+export interface ImportedRecipe {
+  name: string;
+  description: string;
+  servings: number;
+  ingredients: ImportedIngredient[];
+  prepSteps: string[];
+  cookingSteps: string[];
+}

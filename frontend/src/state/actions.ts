@@ -24,17 +24,18 @@ import {
   updateRecipe as updateRecipeApi,
   deleteRecipe as deleteRecipeApi,
 } from '../api/recipes-api';
-import { fetchRecipeIngredients } from '../api/recipe-ingredients-api';
-import { fetchRecipeSteps } from '../api/recipe-steps-api';
+import { fetchRecipeIngredients, appendRecipeIngredient } from '../api/recipe-ingredients-api';
+import { fetchRecipeSteps, appendRecipeStep } from '../api/recipe-steps-api';
 import {
   fetchSessions,
   createSession,
   updateSession as updateSessionApi,
   deleteSession as deleteSessionApi,
 } from '../api/sessions-api';
-import type { IngredientWithRow, LabelWithRow, RecipeWithRow, SessionWithRow } from '../api/types';
+import type { IngredientWithRow, LabelWithRow, RecipeWithRow, SessionWithRow, ImportedIngredient, RecipeIngredient, RecipeStep } from '../api/types';
 import { ReauthFailedError } from '../auth/reauth';
 import { DEMO_RECIPE_INGREDIENTS, DEMO_RECIPE_STEPS } from '../api/demo-data';
+import type { MatchResult } from '../utils/fuzzy-match';
 import {
   recipes,
   ingredients,
@@ -350,6 +351,120 @@ export async function removeSession(
   } catch (err) {
     if (isReauthFailure(err)) throw err;
     showToast('Failed to delete cook', 'error');
+    throw err;
+  }
+}
+
+// ── Import Recipe (composite) ───────────────────────────────────────
+
+export interface ImportSaveData {
+  name: string;
+  description: string;
+  servings: number;
+  sourceUrl: string;
+  labels: string;
+  ingredients: Array<{
+    /** Existing ingredient ID if matched, or null for new */
+    ingredientId: string | null;
+    name: string;
+    quantity: number;
+    unit: string;
+    matchResult: MatchResult;
+  }>;
+  prepSteps: string[];
+  cookingSteps: string[];
+}
+
+/**
+ * Save an imported recipe: creates the recipe, any new ingredients,
+ * recipe-ingredient links, and all steps in sequence.
+ */
+export async function saveImportedRecipe(
+  data: ImportSaveData,
+  token: string,
+): Promise<RecipeWithRow> {
+  try {
+    // 1. Create the recipe
+    const created = await createRecipe({
+      name: data.name,
+      description: data.description,
+      source: 'web',
+      sourceUrl: data.sourceUrl,
+      servings: data.servings,
+      rating: 0,
+      prepTime: 0,
+      labels: data.labels,
+      created: '',
+      updated: '',
+      notes: '',
+    }, token);
+
+    const recipeWithRow: RecipeWithRow = {
+      ...created,
+      sheetRow: recipes.value.length + 2,
+    };
+    recipes.value = [...recipes.value, recipeWithRow];
+
+    // 2. Create new ingredients and build recipe-ingredient links
+    for (let i = 0; i < data.ingredients.length; i++) {
+      const ing = data.ingredients[i];
+      let ingredientId = ing.ingredientId;
+      let ingredientName = ing.name;
+
+      // Create new ingredient if not matched to library
+      if (!ingredientId) {
+        const newIng = await createIngredient({ name: ing.name, description: '' }, token);
+        ingredientId = newIng.id;
+        ingredientName = newIng.name;
+        const withRow: IngredientWithRow = {
+          ...newIng,
+          sheetRow: ingredients.value.length + 2,
+        };
+        ingredients.value = [...ingredients.value, withRow];
+      }
+
+      // Create recipe-ingredient link
+      const ri: RecipeIngredient = {
+        recipe_id: created.id,
+        ingredient_id: ingredientId,
+        ingredientName,
+        quantity: ing.quantity,
+        unit: ing.unit,
+        order: i + 1,
+      };
+      await appendRecipeIngredient(ri, token);
+      recipeIngredients.value = [...recipeIngredients.value, { ...ri, sheetRow: recipeIngredients.value.length + 2 }];
+    }
+
+    // 3. Create prep steps
+    for (let i = 0; i < data.prepSteps.length; i++) {
+      const step: RecipeStep = {
+        recipe_id: created.id,
+        stepType: 'prep',
+        stepNumber: i + 1,
+        description: data.prepSteps[i],
+      };
+      await appendRecipeStep(step, token);
+      recipeSteps.value = [...recipeSteps.value, { ...step, sheetRow: recipeSteps.value.length + 2 }];
+    }
+
+    // 4. Create cooking steps
+    for (let i = 0; i < data.cookingSteps.length; i++) {
+      const step: RecipeStep = {
+        recipe_id: created.id,
+        stepType: 'cooking',
+        stepNumber: i + 1,
+        description: data.cookingSteps[i],
+      };
+      await appendRecipeStep(step, token);
+      recipeSteps.value = [...recipeSteps.value, { ...step, sheetRow: recipeSteps.value.length + 2 }];
+    }
+
+    showToast('Recipe imported successfully', 'success');
+    return recipeWithRow;
+  } catch (err) {
+    if (isReauthFailure(err)) throw err;
+    showToast('Failed to save imported recipe', 'error');
     throw err;
   }
 }

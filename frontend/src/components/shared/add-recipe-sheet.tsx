@@ -1,5 +1,10 @@
 import { useState } from 'preact/hooks';
 import { navigate } from '../../router/router';
+import { useAuth } from '../../auth/auth-context';
+import { importRecipeFromUrl, ImportError } from '../../api/import-api';
+import { getConfigValue } from '../../api/config-api';
+import type { ImportedRecipe } from '../../api/types';
+import { ImportReview } from '../recipes/import-review';
 
 interface AddRecipeSheetProps {
   onClose: () => void;
@@ -7,20 +12,97 @@ interface AddRecipeSheetProps {
   fromCookFlow?: boolean;
 }
 
+type ImportStatus = 'idle' | 'fetching' | 'extracting' | 'matching' | 'done' | 'error';
+
+/** Extract domain from URL for display. */
+function extractDomain(url: string): string | null {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return null;
+  }
+}
+
 export function AddRecipeSheet({ onClose, fromCookFlow }: AddRecipeSheetProps) {
+  const { token } = useAuth();
   const [showImportUrl, setShowImportUrl] = useState(false);
   const [importUrl, setImportUrl] = useState('');
-  const [importStatus, setImportStatus] = useState<'idle' | 'loading' | 'done'>('idle');
+  const [importStatus, setImportStatus] = useState<ImportStatus>('idle');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [importedRecipe, setImportedRecipe] = useState<ImportedRecipe | null>(null);
 
-  function handleImport() {
-    setImportStatus('loading');
-    setTimeout(() => setImportStatus('done'), 1500);
+  async function handleImport() {
+    if (!importUrl.trim()) return;
+
+    setImportStatus('fetching');
+    setErrorMessage('');
+
+    try {
+      // Get custom prompt from Config sheet if available
+      let prompt: string | undefined;
+      if (token) {
+        setImportStatus('fetching');
+        prompt = await getConfigValue('import_prompt', token) || undefined;
+      }
+
+      setImportStatus('extracting');
+
+      const recipe = await importRecipeFromUrl(importUrl.trim(), prompt);
+
+      setImportStatus('matching');
+      // Brief pause to show matching state
+      await new Promise(r => setTimeout(r, 300));
+
+      setImportedRecipe(recipe);
+      setImportStatus('done');
+    } catch (err) {
+      setImportStatus('error');
+      if (err instanceof ImportError) {
+        setErrorMessage(err.message);
+      } else {
+        setErrorMessage('Could not extract a recipe from this page');
+      }
+    }
   }
 
   function closeImport() {
     setShowImportUrl(false);
     setImportUrl('');
     setImportStatus('idle');
+    setErrorMessage('');
+    setImportedRecipe(null);
+  }
+
+  function handleImportSaved(recipeId: string) {
+    closeImport();
+    onClose();
+    navigate(`/recipes/${recipeId}`);
+  }
+
+  const domain = extractDomain(importUrl);
+  const buttonText = domain ? `Import from ${domain}` : 'Import Recipe';
+  const isLoading = importStatus === 'fetching' || importStatus === 'extracting' || importStatus === 'matching';
+
+  const statusMessages: Record<string, string> = {
+    fetching: 'Fetching page...',
+    extracting: 'Extracting recipe...',
+    matching: 'Matching ingredients...',
+  };
+
+  // Show review screen when recipe is extracted
+  if (importedRecipe && importStatus === 'done') {
+    return (
+      <ImportReview
+        recipe={importedRecipe}
+        sourceUrl={importUrl.trim()}
+        onSave={handleImportSaved}
+        onBack={() => {
+          setImportedRecipe(null);
+          setImportStatus('idle');
+        }}
+        onClose={() => { closeImport(); onClose(); }}
+      />
+    );
   }
 
   if (showImportUrl) {
@@ -29,15 +111,32 @@ export function AddRecipeSheet({ onClose, fromCookFlow }: AddRecipeSheetProps) {
         <div class="modal-content" onClick={e => e.stopPropagation()}>
           <div class="modal-handle" />
           <div class="modal-header">
-            <h2>🌐 Import from URL</h2>
+            <h2>Import from URL</h2>
             <button class="btn-icon" onClick={() => { closeImport(); onClose(); }} aria-label="Close">✕</button>
           </div>
 
-          {importStatus === 'idle' && (
+          {isLoading ? (
+            <div style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
+              <div class="spinner" style={{ margin: '0 auto var(--space-md)' }} />
+              <p style={{ color: 'var(--color-text-secondary)', fontWeight: 500 }}>
+                {statusMessages[importStatus]}
+              </p>
+              <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 'var(--space-sm)' }}>
+                {importUrl}
+              </p>
+            </div>
+          ) : (
             <div>
               <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-md)' }}>
                 Paste a recipe URL and we'll extract the ingredients, prep steps, and cooking instructions automatically.
               </p>
+
+              {importStatus === 'error' && errorMessage && (
+                <div class="import-error-banner">
+                  {errorMessage}
+                </div>
+              )}
+
               <div class="form-group">
                 <label class="form-label">Recipe URL</label>
                 <input
@@ -50,29 +149,18 @@ export function AddRecipeSheet({ onClose, fromCookFlow }: AddRecipeSheetProps) {
                 />
               </div>
               <button class="btn btn-primary btn-block" onClick={handleImport} disabled={!importUrl.trim()}>
-                Import Recipe
+                {buttonText}
               </button>
-            </div>
-          )}
 
-          {importStatus === 'loading' && (
-            <div style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
-              <div class="spinner" style={{ margin: '0 auto var(--space-md)' }} />
-              <p style={{ color: 'var(--color-text-secondary)' }}>Analyzing recipe...</p>
-              <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 'var(--space-sm)' }}>{importUrl}</p>
-            </div>
-          )}
-
-          {importStatus === 'done' && (
-            <div style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: 'var(--space-md)' }}>🚧</div>
-              <h3 style={{ marginBottom: 'var(--space-sm)' }}>Coming Soon</h3>
-              <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-lg)' }}>
-                AI-powered recipe import is under development. For now, you can enter recipes manually.
-              </p>
-              <button class="btn btn-primary btn-block" onClick={() => { closeImport(); onClose(); navigate('/recipes/new'); }}>
-                Enter Manually Instead
-              </button>
+              {importStatus === 'error' && (
+                <button
+                  class="btn btn-secondary btn-block"
+                  style={{ marginTop: 'var(--space-sm)' }}
+                  onClick={() => { closeImport(); onClose(); navigate('/recipes/new'); }}
+                >
+                  Enter Manually Instead
+                </button>
+              )}
             </div>
           )}
         </div>
