@@ -21,9 +21,9 @@ Never call `gh project list` or `gh project field-list` — IDs are hardcoded.
 
 ```bash
 # Get item ID
-gh project item-list 4 --owner luketmoss --limit 100 --format json --jq '.items[] | select(.content.number == <ISSUE_NUMBER>) | .id'
+gh project item-list 5 --owner luketmoss --limit 100 --format json --jq '.items[] | select(.content.number == <ISSUE_NUMBER>) | .id'
 # Move column
-gh api graphql -f query='mutation { updateProjectV2ItemFieldValue(input: { projectId: "PVT_kwHOAJR9ys4BRxNc" itemId: "ITEM_ID" fieldId: "PVTSSF_lAHOAJR9ys4BRxNczg_f9DE" value: { singleSelectOptionId: "OPTION_ID" } }) { projectV2Item { id } } }'
+gh api graphql -f query='mutation { updateProjectV2ItemFieldValue(input: { projectId: "PVT_kwHOAJR9ys4BT5st" itemId: "ITEM_ID" fieldId: "PVTSSF_lAHOAJR9ys4BT5stzhBFaEI" value: { singleSelectOptionId: "OPTION_ID" } }) { projectV2Item { id } } }'
 ```
 
 | Column | Option ID |
@@ -35,31 +35,25 @@ gh api graphql -f query='mutation { updateProjectV2ItemFieldValue(input: { proje
 
 `cd frontend && npm run dev` → `http://localhost:5175/forage/?demo=true`
 
-Demo data: 16 recipes, 10 labels, 2 meal plans, 3 cooking sessions.
-
-### Auth in Preview
-
-Demo mode auto-authenticates — no login screen, no OAuth popups. Just navigate to `http://localhost:5175/forage/?demo=true` and the app loads directly into the authenticated state.
+Demo mode auto-authenticates — no login screen, no OAuth popups. Data includes 8 recipes, 25 ingredients, 6 labels, 8 sessions (completed + active + scheduled), with recipe ingredients and steps for 6 recipes.
 
 ### Demo Mode Limitations
 
-- Deletions are not persisted — `fetchLabels`/`fetchRecipes` always return the original demo set after re-fetch
-- Creates/renames update signals in-memory but reset on page reload
+- CRUD operations update signals in-memory but reset on page reload
 - Console will show Google OAuth popup blocked errors — these are expected and not bugs
 
 ### Token Efficiency Tips
 
-- Prefer `preview_eval` or `preview_inspect` over `preview_snapshot` when checking specific elements — snapshots return huge accessibility trees
+- Prefer `preview_eval` or `preview_inspect` over `preview_snapshot` when checking specific elements
 - Use `preview_screenshot` for visual verification, `preview_inspect` for precise CSS values
-- Batch multiple checks in a single `preview_eval` IIFE instead of multiple calls
-- Skip 480px tablet breakpoint unless the feature specifically involves responsive layout changes
+- Batch multiple checks in a single `preview_eval` IIFE
 
 ## Process
 
 1. **Read issue + PR:** `gh issue view <N>` → `gh pr list --search "Closes #<N>"` → `gh pr diff <PR_N>` → extract ACs
 2. **Automated tests:** `cd frontend && npm test && npx tsc --noEmit && npm run build` — all must pass
 3. **Manual testing in demo mode** — for each AC: follow Given/When/Then exactly, screenshot evidence, note PASS/FAIL
-4. **Test matrix:** 375px mobile + 480px tablet · light + dark theme · check console errors
+4. **Test matrix:** 375px mobile · light + dark theme · check console errors
 5. **Edge cases:** empty states, boundary values, navigation flow, error states
 6. **Post QA report** as PR comment:
 

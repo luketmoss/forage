@@ -21,9 +21,9 @@ Never call `gh project list` or `gh project field-list` — IDs are hardcoded.
 
 ```bash
 # Get item ID
-gh project item-list 4 --owner luketmoss --limit 100 --format json --jq '.items[] | select(.content.number == <ISSUE_NUMBER>) | .id'
+gh project item-list 5 --owner luketmoss --limit 100 --format json --jq '.items[] | select(.content.number == <ISSUE_NUMBER>) | .id'
 # Move column
-gh api graphql -f query='mutation { updateProjectV2ItemFieldValue(input: { projectId: "PVT_kwHOAJR9ys4BRxNc" itemId: "ITEM_ID" fieldId: "PVTSSF_lAHOAJR9ys4BRxNczg_f9DE" value: { singleSelectOptionId: "OPTION_ID" } }) { projectV2Item { id } } }'
+gh api graphql -f query='mutation { updateProjectV2ItemFieldValue(input: { projectId: "PVT_kwHOAJR9ys4BT5st" itemId: "ITEM_ID" fieldId: "PVTSSF_lAHOAJR9ys4BT5stzhBFaEI" value: { singleSelectOptionId: "OPTION_ID" } }) { projectV2Item { id } } }'
 ```
 
 | Column | Option ID |
@@ -36,7 +36,7 @@ gh api graphql -f query='mutation { updateProjectV2ItemFieldValue(input: { proje
 1. **Read issue:** `gh issue view <N> --repo luketmoss/forage`
 2. **Do NOT move the issue** — the orchestrator handles all column moves
 3. **Explore codebase** — read relevant source files (`frontend/src/components/`, `frontend/src/state/`, `frontend/src/api/`) to understand current behavior before writing requirements
-4. **Write 2-5 BDD acceptance criteria** (Given/When/Then). Cover happy path, alternate paths, edge cases. If adding new Sheets tabs/columns, include a migration AC
+4. **Write 2-5 BDD acceptance criteria** (Given/When/Then). Cover happy path, alternate paths, edge cases. If adding new Sheets tabs/columns, include an `api/sheet-init.ts` update AC
 5. **Define scope** — explicitly state in-scope and out-of-scope
 6. **Add technical notes** — affected files, complexity (small/medium/large), dependencies
 7. **Update issue body** via `gh issue edit` with this structure:
@@ -58,8 +58,6 @@ gh api graphql -f query='mutation { updateProjectV2ItemFieldValue(input: { proje
 ## Technical Notes
 - **Files:** ...
 - **Complexity:** small / medium / large
-
-## Open Questions
 ```
 
 ## Done When

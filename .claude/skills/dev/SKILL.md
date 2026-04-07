@@ -10,7 +10,9 @@ allowed-tools: Bash, Read, Write, Edit, Grep, Glob, Task, TodoWrite
 
 Senior developer. BDD — write tests from acceptance criteria, then implement. See CLAUDE.md for tech stack, data model, and UX decisions.
 
-**Non-negotiable conventions:** Preact (NOT React), @preact/signals for shared state, CSS custom properties in `global.css`, `withReauth()` on all Sheets calls, `isDemo()` fallback in every API function, `sheetRow` on all entities, bottom-to-top row deletion.
+**Non-negotiable conventions:** Preact (NOT React), @preact/signals for shared state, CSS custom properties in `global.css`, `withReauth()` on all Sheets calls, `isDemo()` fallback in every API function, `sheetRow` on all entities, bottom-to-top row deletion, `sanitizeCell()` on user input before writing to Sheets.
+
+**Architecture notes:** Recipes use a `HydratedRecipe` computed signal that joins recipe + ingredients + steps from separate signals. Session helpers live in `shared/utils.ts`. Label colors in `api/label-colors.ts`. Shopping export uses `api/hive-api.ts`.
 
 ## Config
 
@@ -23,9 +25,9 @@ Never call `gh project list` or `gh project field-list` — IDs are hardcoded.
 
 ```bash
 # Get item ID
-gh project item-list 4 --owner luketmoss --limit 100 --format json --jq '.items[] | select(.content.number == <ISSUE_NUMBER>) | .id'
+gh project item-list 5 --owner luketmoss --limit 100 --format json --jq '.items[] | select(.content.number == <ISSUE_NUMBER>) | .id'
 # Move column
-gh api graphql -f query='mutation { updateProjectV2ItemFieldValue(input: { projectId: "PVT_kwHOAJR9ys4BRxNc" itemId: "ITEM_ID" fieldId: "PVTSSF_lAHOAJR9ys4BRxNczg_f9DE" value: { singleSelectOptionId: "OPTION_ID" } }) { projectV2Item { id } } }'
+gh api graphql -f query='mutation { updateProjectV2ItemFieldValue(input: { projectId: "PVT_kwHOAJR9ys4BT5st" itemId: "ITEM_ID" fieldId: "PVTSSF_lAHOAJR9ys4BT5stzhBFaEI" value: { singleSelectOptionId: "OPTION_ID" } }) { projectV2Item { id } } }'
 ```
 
 | Column | Option ID |
@@ -40,7 +42,7 @@ gh api graphql -f query='mutation { updateProjectV2ItemFieldValue(input: { proje
 2. **Move to In Development** using board movement helper
 3. **Branch:** `git checkout -b feature/<N>-<short-desc>` (or `fix/`, `chore/`, `enhancement/`)
 4. **Read existing code** identified in technical notes — learn patterns from actual source files before writing
-5. **Implement with tests (BDD):** For each AC → write test → implement → verify. Tests: `frontend/src/**/*.test.ts` (Vitest). If adding new Sheets columns/tabs, handle backward compatibility
+5. **Implement with tests (BDD):** For each AC → write test → implement → verify. Tests: `frontend/src/**/*.test.ts` (Vitest). If adding new Sheets columns/tabs, update `api/sheet-init.ts`
 6. **Verify:** `cd frontend && npm test && npx tsc --noEmit && npm run build` — ALL must pass
 7. **Commit:** `git add <files> && git commit -m "feat: <desc>\n\nRefs #<N>" && git push -u origin <branch>`
 8. **PR:** `gh pr create --repo luketmoss/forage --title "..." --body "Closes #<N>\n\n## Changes\n..."`

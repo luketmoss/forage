@@ -21,9 +21,9 @@ Never call `gh project list` or `gh project field-list` — IDs are hardcoded.
 
 ```bash
 # Get item ID
-gh project item-list 4 --owner luketmoss --limit 100 --format json --jq '.items[] | select(.content.number == <ISSUE_NUMBER>) | .id'
+gh project item-list 5 --owner luketmoss --limit 100 --format json --jq '.items[] | select(.content.number == <ISSUE_NUMBER>) | .id'
 # Move column
-gh api graphql -f query='mutation { updateProjectV2ItemFieldValue(input: { projectId: "PVT_kwHOAJR9ys4BRxNc" itemId: "ITEM_ID" fieldId: "PVTSSF_lAHOAJR9ys4BRxNczg_f9DE" value: { singleSelectOptionId: "OPTION_ID" } }) { projectV2Item { id } } }'
+gh api graphql -f query='mutation { updateProjectV2ItemFieldValue(input: { projectId: "PVT_kwHOAJR9ys4BT5st" itemId: "ITEM_ID" fieldId: "PVTSSF_lAHOAJR9ys4BT5stzhBFaEI" value: { singleSelectOptionId: "OPTION_ID" } }) { projectV2Item { id } } }'
 ```
 
 | Column | Option ID |
@@ -32,7 +32,7 @@ gh api graphql -f query='mutation { updateProjectV2ItemFieldValue(input: { proje
 
 ## Process
 
-1. **Classify:** Type (`bug`/`feature`/`enhancement`), Area (`auth`/`recipes`/`meal-plans`/`ingredients`/`schedule`/`settings`/`infrastructure`), Priority (`priority:high`/`priority:medium`/`priority:low`)
+1. **Classify:** Type (`bug`/`feature`/`enhancement`), Area (`auth`/`recipes`/`ingredients`/`labels`/`sessions`/`schedule`/`shopping`/`cook-flow`/`settings`/`infrastructure`), Priority (`priority:high`/`priority:medium`/`priority:low`)
 2. **Deduplicate:** `gh issue list --repo luketmoss/forage --state all --limit 50 --search "<keywords>"` — if duplicate exists, comment on it and stop
 3. **For bugs:** read relevant source files to verify and understand root cause
 4. **Ensure labels exist:** Before creating the issue, check that all labels exist: `gh label list --repo luketmoss/forage --json name --limit 50`. If any label is missing, create it first: `gh label create "<name>" --repo luketmoss/forage --color "0e8a16"`
@@ -54,7 +54,7 @@ EOF
 )"
 ```
 
-6. **Add to board:** `gh project item-add 4 --owner luketmoss --url <issue-url>` → move to To Do
+6. **Add to board:** `gh project item-add 5 --owner luketmoss --url <issue-url>` → move to To Do
 
 ## Handoff
 

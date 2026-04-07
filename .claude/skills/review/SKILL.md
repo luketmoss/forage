@@ -21,9 +21,9 @@ Never call `gh project list` or `gh project field-list` — IDs are hardcoded.
 
 ```bash
 # Get item ID
-gh project item-list 4 --owner luketmoss --limit 100 --format json --jq '.items[] | select(.content.number == <ISSUE_NUMBER>) | .id'
+gh project item-list 5 --owner luketmoss --limit 100 --format json --jq '.items[] | select(.content.number == <ISSUE_NUMBER>) | .id'
 # Move column
-gh api graphql -f query='mutation { updateProjectV2ItemFieldValue(input: { projectId: "PVT_kwHOAJR9ys4BRxNc" itemId: "ITEM_ID" fieldId: "PVTSSF_lAHOAJR9ys4BRxNczg_f9DE" value: { singleSelectOptionId: "OPTION_ID" } }) { projectV2Item { id } } }'
+gh api graphql -f query='mutation { updateProjectV2ItemFieldValue(input: { projectId: "PVT_kwHOAJR9ys4BT5st" itemId: "ITEM_ID" fieldId: "PVTSSF_lAHOAJR9ys4BT5stzhBFaEI" value: { singleSelectOptionId: "OPTION_ID" } }) { projectV2Item { id } } }'
 ```
 
 | Column | Option ID |
@@ -35,10 +35,11 @@ gh api graphql -f query='mutation { updateProjectV2ItemFieldValue(input: { proje
 
 - **Preact** (NOT React) — imports from `preact/hooks`, NOT `react`
 - **@preact/signals** for shared state — `signal()`, `computed()` at module level. `useState` only for component-local state
-- **CSS** custom properties in `global.css` — no frameworks, no modules. Mobile-first (375px). Touch targets ≥ 44×44px
+- **CSS** custom properties in `global.css` — no frameworks, no modules. Mobile-first (375px). Touch targets ≥ 44×44px (56px+ in cook flow)
 - **API:** direct `fetch()` to Sheets REST API. All calls wrapped with `withReauth()`. Every API function checks `isDemo()` first. All entities carry `sheetRow`. Row deletion bottom-to-top
-- **Security:** Sheets formula injection prevention (prefix `'` if input starts with `=+\-@\t`). No secrets in client code
+- **Security:** `sanitizeCell()` on all user input before Sheets writes. No secrets in client code
 - **Quality:** TypeScript strict, no `any` unless documented. Explicit return types on exports. No `console.log`. No dead code
+- **Architecture:** Recipes use `HydratedRecipe` computed signal. Separate signals for recipe_ingredients and recipe_steps. Session helpers in `shared/utils.ts`
 
 ## Process
 
@@ -61,7 +62,7 @@ EOF
 )"
 ```
 
-**Note:** Use `--comment` (not `--approve`) because GitHub does not allow approving your own PRs. For CHANGES REQUESTED, use `--comment` and clearly state blocking issues in the body.
+**Note:** Use `--comment` (not `--approve`) because GitHub does not allow approving your own PRs.
 
 5. **Move issue:** APPROVED → Done · CHANGES REQUESTED → In Development
 

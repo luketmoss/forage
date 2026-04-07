@@ -18,7 +18,8 @@ CI/CD and infrastructure specialist. Diagnoses and fixes build failures, deploym
 ## Key Paths
 
 - `frontend/` — source · `frontend/dist/` — build output · `frontend/vite.config.ts` (base: `/forage/`)
-- `.github/workflows/` — CI/CD · Deploy target: GitHub Pages
+- `.github/workflows/deploy.yml` — CI/CD · Deploy target: GitHub Pages
+- `frontend/src/api/sheet-init.ts` — sheet tab auto-creation
 - Windows dev machine — no `jq`, use `gh --jq` flags
 
 ## Process
