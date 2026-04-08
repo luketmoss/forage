@@ -6,7 +6,7 @@
 import type { ImportedRecipe } from './types';
 import { isDemo } from './demo-data';
 
-const WORKER_URL = import.meta.env.VITE_WORKER_URL || 'https://forage-import.luketmoss.workers.dev';
+const WORKER_URL = import.meta.env.VITE_WORKER_URL || 'https://forage-import.luketmossbot.workers.dev';
 
 /** Demo response for testing without a real Worker. */
 const DEMO_IMPORTED_RECIPE: ImportedRecipe = {
