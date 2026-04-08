@@ -1,10 +1,15 @@
 /**
- * Forage Import Worker — Cloudflare Worker that proxies recipe URL fetching
- * and OpenAI API extraction. Keeps API keys server-side.
+ * Forage Import Worker — Cloudflare Worker that proxies recipe URL fetching.
+ * Uses a hybrid approach:
+ *   1. JSON-LD structured data extraction (free, instant) for ~90% of recipe sites
+ *   2. Gemini LLM for prep/cooking step classification (small focused prompt)
+ *   3. Full LLM fallback for pages without structured data
  */
 
+import { extractJsonLdRecipe } from './parsing';
+
 interface Env {
-  OPENAI_API_KEY: string;
+  GEMINI_API_KEY: string;
 }
 
 const ALLOWED_ORIGINS = [
@@ -59,7 +64,27 @@ function stripHtml(html: string): string {
   return text.slice(0, 15000);
 }
 
-const DEFAULT_PROMPT = `You are a recipe extraction assistant. Given the text content of a recipe webpage, extract the recipe into a structured JSON format.
+/** Classification-only prompt: splits already-extracted steps into prep vs cooking. */
+const DEFAULT_CLASSIFICATION_PROMPT = `You are a recipe step classifier. Given a numbered list of recipe steps, classify each step as either "prep" or "cooking".
+
+Prep steps: measuring, cutting, chopping, dicing, mincing, mixing, seasoning, marinating, preheating, breading, whisking — anything that does NOT involve applying heat to the food.
+
+Cooking steps: sauteing, frying, baking, boiling, simmering, roasting, grilling, broiling, steaming, assembling in a hot pan — anything that applies heat or is the final assembly.
+
+Return ONLY valid JSON with this exact structure:
+{
+  "prepSteps": ["Step description", ...],
+  "cookingSteps": ["Step description", ...]
+}
+
+Rules:
+- Every input step must appear in exactly one of the two arrays
+- Preserve the original step text exactly
+- Do not add or remove steps
+- Do not include any text outside the JSON`;
+
+/** Full extraction prompt: extracts entire recipe from raw page text. */
+const DEFAULT_FULL_EXTRACTION_PROMPT = `You are a recipe extraction assistant. Given the text content of a recipe webpage, extract the recipe into a structured JSON format.
 
 Separate steps into "prep" (measuring, cutting, preheating, mixing dry ingredients) and "cooking" (applying heat, assembling, baking, frying, boiling).
 
@@ -85,6 +110,46 @@ Rules:
 - If no quantity is specified, use 1 and unit "whole"
 - Separate prep steps (no heat: measuring, cutting, mixing, preheating) from cooking steps (heat/assembly: sauteing, baking, boiling)
 - Do not include any text outside the JSON`;
+
+/** Call Gemini API with a prompt and user content, expecting JSON response. */
+async function callGemini(
+  env: Env,
+  systemPrompt: string,
+  userContent: string,
+): Promise<string> {
+  const geminiRes = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${env.GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{ text: `${systemPrompt}\n\n${userContent}` }],
+        }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+        },
+      }),
+    },
+  );
+
+  if (!geminiRes.ok) {
+    const errText = await geminiRes.text();
+    console.error('Gemini error:', errText);
+    throw new Error('AI extraction failed');
+  }
+
+  const geminiData = await geminiRes.json() as {
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  };
+
+  const text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) {
+    throw new Error('AI returned empty response');
+  }
+
+  return text;
+}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -155,6 +220,51 @@ export default {
       }
 
       const html = await pageRes.text();
+
+      // === Layer 1: Try JSON-LD extraction ===
+      const jsonLdRecipe = extractJsonLdRecipe(html);
+
+      if (jsonLdRecipe && jsonLdRecipe.ingredients.length > 0 && jsonLdRecipe.rawSteps.length > 0) {
+        // === Layer 2: Use LLM only for prep/cooking classification ===
+        const classificationPrompt = (prompt && typeof prompt === 'string' && prompt.trim())
+          ? prompt.trim()
+          : DEFAULT_CLASSIFICATION_PROMPT;
+
+        const stepsText = jsonLdRecipe.rawSteps
+          .map((step, i) => `${i + 1}. ${step}`)
+          .join('\n');
+
+        try {
+          const aiText = await callGemini(
+            env,
+            classificationPrompt,
+            `Classify these recipe steps into prep and cooking:\n\n${stepsText}`,
+          );
+
+          const classified = JSON.parse(aiText) as {
+            prepSteps?: string[];
+            cookingSteps?: string[];
+          };
+
+          return new Response(JSON.stringify({
+            name: jsonLdRecipe.name,
+            description: jsonLdRecipe.description,
+            servings: jsonLdRecipe.servings,
+            ingredients: jsonLdRecipe.ingredients,
+            prepSteps: classified.prepSteps || [],
+            cookingSteps: classified.cookingSteps || [],
+            source: 'jsonld',
+          }), {
+            status: 200,
+            headers: { ...cors, 'Content-Type': 'application/json' },
+          });
+        } catch (err) {
+          console.error('Classification failed, falling back to full extraction:', err);
+          // Fall through to full LLM extraction
+        }
+      }
+
+      // === Layer 3: Full LLM fallback ===
       const pageText = stripHtml(html);
 
       if (pageText.length < 50) {
@@ -166,31 +276,18 @@ export default {
         });
       }
 
-      // Call OpenAI API
-      const systemPrompt = (prompt && typeof prompt === 'string' && prompt.trim())
+      const fullPrompt = (prompt && typeof prompt === 'string' && prompt.trim())
         ? prompt.trim()
-        : DEFAULT_PROMPT;
+        : DEFAULT_FULL_EXTRACTION_PROMPT;
 
-      const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: `Extract the recipe from this webpage content:\n\n${pageText}` },
-          ],
-          temperature: 0.1,
-          response_format: { type: 'json_object' },
-        }),
-      });
-
-      if (!openaiRes.ok) {
-        const errText = await openaiRes.text();
-        console.error('OpenAI error:', errText);
+      let aiText: string;
+      try {
+        aiText = await callGemini(
+          env,
+          fullPrompt,
+          `Extract the recipe from this webpage content:\n\n${pageText}`,
+        );
+      } catch {
         return new Response(JSON.stringify({
           error: 'AI extraction failed — please try again',
         }), {
@@ -199,24 +296,10 @@ export default {
         });
       }
 
-      const openaiData = await openaiRes.json() as {
-        choices: Array<{ message: { content: string } }>;
-      };
-
-      const content = openaiData.choices?.[0]?.message?.content;
-      if (!content) {
-        return new Response(JSON.stringify({
-          error: 'AI returned empty response',
-        }), {
-          status: 502,
-          headers: { ...cors, 'Content-Type': 'application/json' },
-        });
-      }
-
       // Parse and validate the AI response
-      let recipe: unknown;
+      let recipe: Record<string, unknown>;
       try {
-        recipe = JSON.parse(content);
+        recipe = JSON.parse(aiText);
       } catch {
         return new Response(JSON.stringify({
           error: 'AI returned invalid JSON — try editing the prompt',
@@ -226,7 +309,9 @@ export default {
         });
       }
 
-      // Return the extracted recipe
+      // Add source indicator
+      recipe.source = 'llm';
+
       return new Response(JSON.stringify(recipe), {
         status: 200,
         headers: { ...cors, 'Content-Type': 'application/json' },

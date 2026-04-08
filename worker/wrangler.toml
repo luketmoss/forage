@@ -2,5 +2,5 @@ name = "forage-import"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
 
-# Secrets (set via `wrangler secret put OPENAI_API_KEY`):
-# - OPENAI_API_KEY
+# Secrets (set via `wrangler secret put GEMINI_API_KEY`):
+# - GEMINI_API_KEY (get at https://aistudio.google.com/apikey)
