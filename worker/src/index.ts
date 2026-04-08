@@ -64,15 +64,24 @@ function stripHtml(html: string): string {
   return text.slice(0, 15000);
 }
 
-/** Classification-only prompt: splits already-extracted steps into prep vs cooking. */
-const DEFAULT_CLASSIFICATION_PROMPT = `You are a recipe step classifier. Given a numbered list of recipe steps, classify each step as either "prep" or "cooking".
+/** Classification-only prompt: parses ingredients and splits steps into prep vs cooking. */
+const DEFAULT_CLASSIFICATION_PROMPT = `You are a recipe assistant. Given raw ingredients and steps from a recipe, clean up the ingredients and classify the steps.
 
-Prep steps: measuring, cutting, chopping, dicing, mincing, mixing, seasoning, marinating, preheating, breading, whisking — anything that does NOT involve applying heat to the food.
+For ingredients, parse each raw string into a clean structured format:
+- "name": the core ingredient, capitalized properly (e.g. "Great Northern Beans", "Oregano", "Cilantro")
+- "quantity": numeric amount as a decimal (fractions converted: 1/2 = 0.5, 1 1/2 = 1.5)
+- "unit": one of: whole, cups, tbsp, tsp, oz, lbs, cloves, slices, pieces, cans, pinch, dash
+- "descriptor": any modifier separated by dashes — size, state, brand, container (e.g. "dried", "fresh", "15 oz can", "diced - 4 oz can", "small - chopped"). Omit parenthetical alternatives like "(or plain Greek yogurt)".
 
-Cooking steps: sauteing, frying, baking, boiling, simmering, roasting, grilling, broiling, steaming, assembling in a hot pan — anything that applies heat or is the final assembly.
+For steps, classify each as "prep" or "cooking":
+- Prep: measuring, cutting, chopping, dicing, mincing, mixing, seasoning, marinating, preheating, breading, whisking — no heat applied
+- Cooking: sauteing, frying, baking, boiling, simmering, roasting, grilling, broiling, steaming — heat applied or final assembly
 
 Return ONLY valid JSON with this exact structure:
 {
+  "ingredients": [
+    { "name": "Ingredient Name", "quantity": 1.5, "unit": "cups", "descriptor": "dried" }
+  ],
   "prepSteps": ["Step description", ...],
   "cookingSteps": ["Step description", ...]
 }
@@ -81,6 +90,9 @@ Rules:
 - Every input step must appear in exactly one of the two arrays
 - Preserve the original step text exactly
 - Do not add or remove steps
+- Format ingredient names as "Name - descriptor" is NOT needed in JSON; keep name and descriptor as separate fields
+- If no quantity is found, use 1 and unit "whole"
+- If no descriptor applies, omit the descriptor field
 - Do not include any text outside the JSON`;
 
 /** Full extraction prompt: extracts entire recipe from raw page text. */
@@ -118,7 +130,7 @@ async function callGemini(
   userContent: string,
 ): Promise<string> {
   const geminiRes = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${env.GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${env.GEMINI_API_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -230,6 +242,10 @@ export default {
           ? prompt.trim()
           : DEFAULT_CLASSIFICATION_PROMPT;
 
+        const ingredientsText = jsonLdRecipe.rawIngredients
+          .map((ing, i) => `${i + 1}. ${ing}`)
+          .join('\n');
+
         const stepsText = jsonLdRecipe.rawSteps
           .map((step, i) => `${i + 1}. ${step}`)
           .join('\n');
@@ -238,19 +254,30 @@ export default {
           const aiText = await callGemini(
             env,
             classificationPrompt,
-            `Classify these recipe steps into prep and cooking:\n\n${stepsText}`,
+            `Parse these ingredients and classify the steps:\n\nINGREDIENTS:\n${ingredientsText}\n\nSTEPS:\n${stepsText}`,
           );
 
           const classified = JSON.parse(aiText) as {
+            ingredients?: Array<{ name: string; quantity: number; unit: string; descriptor?: string }>;
             prepSteps?: string[];
             cookingSteps?: string[];
           };
+
+          // Format ingredients: merge name + descriptor with " - " separator
+          const formattedIngredients = (classified.ingredients || jsonLdRecipe.ingredients).map(ing => {
+            const desc = 'descriptor' in ing && ing.descriptor ? ` - ${ing.descriptor}` : '';
+            return {
+              name: `${ing.name}${desc}`,
+              quantity: ing.quantity,
+              unit: ing.unit,
+            };
+          });
 
           return new Response(JSON.stringify({
             name: jsonLdRecipe.name,
             description: jsonLdRecipe.description,
             servings: jsonLdRecipe.servings,
-            ingredients: jsonLdRecipe.ingredients,
+            ingredients: formattedIngredients,
             prepSteps: classified.prepSteps || [],
             cookingSteps: classified.cookingSteps || [],
             source: 'jsonld',

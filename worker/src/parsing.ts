@@ -14,6 +14,7 @@ export interface JsonLdRecipe {
   description: string;
   servings: number;
   ingredients: ParsedIngredient[];
+  rawIngredients: string[];
   rawSteps: string[];
 }
 
@@ -233,9 +234,12 @@ function mapJsonLdToRecipe(recipe: Record<string, unknown>): JsonLdRecipe {
 
   // Parse ingredients
   const ingredients: ParsedIngredient[] = [];
+  const rawIngredients: string[] = [];
   if (Array.isArray(recipe.recipeIngredient)) {
     for (const item of recipe.recipeIngredient) {
-      ingredients.push(parseIngredientString(String(item)));
+      const raw = String(item).trim();
+      rawIngredients.push(raw);
+      ingredients.push(parseIngredientString(raw));
     }
   }
 
@@ -264,5 +268,5 @@ function mapJsonLdToRecipe(recipe: Record<string, unknown>): JsonLdRecipe {
     }
   }
 
-  return { name, description, servings, ingredients, rawSteps };
+  return { name, description, servings, ingredients, rawIngredients, rawSteps };
 }
