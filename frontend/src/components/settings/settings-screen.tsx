@@ -6,22 +6,29 @@ import { ForageLogo } from '../shared/forage-logo';
 import { getConfigValue, setConfigValue } from '../../api/config-api';
 import { showToast } from '../../state/store';
 
-const DEFAULT_IMPORT_PROMPT = `You are a recipe step classifier. Given a numbered list of recipe steps, classify each step as either "prep" or "cooking".
+const DEFAULT_IMPORT_PROMPT = `You are a recipe prep assistant. Given raw ingredients and recipe steps, do three things:
 
-Prep steps: measuring, cutting, chopping, dicing, mincing, mixing, seasoning, marinating, preheating, breading, whisking — anything that does NOT involve applying heat to the food.
+1. PARSE INGREDIENTS into clean structured format:
+- "name": core ingredient, capitalized (e.g. "Great Northern Beans", "Oregano")
+- "quantity": numeric decimal (1/2 = 0.5, 1 1/2 = 1.5)
+- "unit": one of: whole, cups, tbsp, tsp, oz, lbs, cloves, slices, pieces, cans, pinch, dash
+- "descriptor": modifier (e.g. "dried", "fresh", "15 oz can"). Omit parenthetical alternatives.
 
-Cooking steps: sauteing, frying, baking, boiling, simmering, roasting, grilling, broiling, steaming, assembling in a hot pan — anything that applies heat or is the final assembly.
+2. GENERATE PREP STEPS with quantities:
+- Slicing/dicing: "Dice 1 yellow onion"
+- Group dry spices: "Mix dry spices: 1.5 tsp cumin, 0.25 tsp cayenne, 0.5 tsp oregano"
+- Group wet ingredients: "Combine wet: 0.5 lime juice, 1 cup sour cream"
+- Drain/rinse: "Drain and rinse 2 cans great northern beans"
+- Only generate steps for things that need doing
 
-Return ONLY valid JSON with this exact structure:
-{
-  "prepSteps": ["Step description", ...],
-  "cookingSteps": ["Step description", ...]
-}
+3. REWRITE COOKING STEPS with inline measurements:
+- "Add 2.5 cups chicken broth" NOT "Add chicken broth"
+- Reference pre-mixed groups: "Add dry spice mixture"
 
 Rules:
-- Every input step must appear in exactly one of the two arrays
-- Preserve the original step text exactly
-- Do not add or remove steps
+- Include quantities in BOTH prep and cooking steps
+- If no quantity found, use 1 and "whole"
+- If no descriptor applies, omit the descriptor field
 - Do not include any text outside the JSON`;
 
 export function SettingsScreen() {

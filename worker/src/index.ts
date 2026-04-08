@@ -64,63 +64,69 @@ function stripHtml(html: string): string {
   return text.slice(0, 15000);
 }
 
-/** Classification-only prompt: parses ingredients and splits steps into prep vs cooking. */
-const DEFAULT_CLASSIFICATION_PROMPT = `You are a recipe assistant. Given raw ingredients and steps from a recipe, clean up the ingredients and classify the steps.
+/** Classification-only prompt: parses ingredients, generates prep steps, and rewrites cooking steps with inline measurements. */
+const DEFAULT_CLASSIFICATION_PROMPT = `You are a recipe prep assistant. Given raw ingredients and recipe steps, do three things:
 
-For ingredients, parse each raw string into a clean structured format:
-- "name": the core ingredient, capitalized properly (e.g. "Great Northern Beans", "Oregano", "Cilantro")
-- "quantity": numeric amount as a decimal (fractions converted: 1/2 = 0.5, 1 1/2 = 1.5)
+1. PARSE INGREDIENTS into clean structured format:
+- "name": core ingredient, capitalized (e.g. "Great Northern Beans", "Oregano")
+- "quantity": numeric decimal (1/2 = 0.5, 1 1/2 = 1.5)
 - "unit": one of: whole, cups, tbsp, tsp, oz, lbs, cloves, slices, pieces, cans, pinch, dash
-- "descriptor": any modifier separated by dashes — size, state, brand, container (e.g. "dried", "fresh", "15 oz can", "diced - 4 oz can", "small - chopped"). Omit parenthetical alternatives like "(or plain Greek yogurt)".
+- "descriptor": modifier (e.g. "dried", "fresh", "15 oz can", "diced - 4 oz can"). Omit parenthetical alternatives.
 
-For steps, classify each as "prep" or "cooking":
-- Prep: measuring, cutting, chopping, dicing, mincing, mixing, seasoning, marinating, preheating, breading, whisking — no heat applied
-- Cooking: sauteing, frying, baking, boiling, simmering, roasting, grilling, broiling, steaming — heat applied or final assembly
+2. GENERATE PREP STEPS — actionable tasks to complete BEFORE cooking begins:
+- Slicing/dicing/chopping: "Dice 1 yellow onion" or "Mince 2 cloves garlic"
+- Group dry spices that are added together: "Mix dry spices: 1.5 tsp cumin, 0.25 tsp cayenne, 0.5 tsp oregano, 0.5 tsp paprika"
+- Group wet ingredients that are combined: "Combine wet: 0.5 lime juice, 1 cup sour cream"
+- Drain/rinse: "Drain and rinse 2 cans great northern beans"
+- Preheat: "Preheat oven to 400°F"
+- Include quantities in every prep step so the user never has to check the ingredient list
+- Only generate prep steps for things that actually need doing — don't create a step for every ingredient
 
-Return ONLY valid JSON with this exact structure:
+3. REWRITE COOKING STEPS with inline measurements:
+- Include quantities when ingredients are added: "Add 2.5 cups chicken broth and 2 cans diced green chilies to the pot" NOT "Add chicken broth and green chilies"
+- Reference pre-mixed groups from prep: "Add dry spice mixture" or "Stir in wet mixture"
+- Keep the cooking sequence faithful to the original recipe steps
+
+Return ONLY valid JSON:
 {
   "ingredients": [
     { "name": "Ingredient Name", "quantity": 1.5, "unit": "cups", "descriptor": "dried" }
   ],
-  "prepSteps": ["Step description", ...],
-  "cookingSteps": ["Step description", ...]
+  "prepSteps": ["Dice 1 yellow onion", "Mix dry spices: 1.5 tsp cumin, ...", ...],
+  "cookingSteps": ["Heat 1 tbsp olive oil in a large pot over medium-high heat", ...]
 }
 
 Rules:
-- Every input step must appear in exactly one of the two arrays
-- Preserve the original step text exactly
-- Do not add or remove steps
-- Format ingredient names as "Name - descriptor" is NOT needed in JSON; keep name and descriptor as separate fields
-- If no quantity is found, use 1 and unit "whole"
+- Include quantities in BOTH prep and cooking steps — the user should never need to look up amounts
+- Keep ingredient JSON fields separate (name, quantity, unit, descriptor)
+- If no quantity found, use 1 and "whole"
 - If no descriptor applies, omit the descriptor field
 - Do not include any text outside the JSON`;
 
 /** Full extraction prompt: extracts entire recipe from raw page text. */
-const DEFAULT_FULL_EXTRACTION_PROMPT = `You are a recipe extraction assistant. Given the text content of a recipe webpage, extract the recipe into a structured JSON format.
+const DEFAULT_FULL_EXTRACTION_PROMPT = `You are a recipe extraction assistant. Given the text content of a recipe webpage, extract the recipe into structured JSON.
 
-Separate steps into "prep" (measuring, cutting, preheating, mixing dry ingredients) and "cooking" (applying heat, assembling, baking, frying, boiling).
+1. INGREDIENTS: Parse each into { name, quantity, unit, descriptor }.
+2. PREP STEPS: Generate actionable prep tasks with quantities — slicing/dicing, grouping dry spices, grouping wet ingredients, draining/rinsing, preheating. Include measurements so the user never checks the ingredient list.
+3. COOKING STEPS: Rewrite with inline measurements — "Add 2.5 cups chicken broth" not "Add chicken broth". Reference pre-mixed groups from prep.
 
-Return ONLY valid JSON with this exact structure:
+Return ONLY valid JSON:
 {
   "name": "Recipe Name",
   "description": "Brief description",
   "servings": 4,
   "ingredients": [
-    { "name": "ingredient name", "quantity": 1.5, "unit": "cups" }
+    { "name": "Ingredient Name", "quantity": 1.5, "unit": "cups", "descriptor": "dried" }
   ],
-  "prepSteps": [
-    "Step description"
-  ],
-  "cookingSteps": [
-    "Step description"
-  ]
+  "prepSteps": ["Dice 1 yellow onion", "Mix dry spices: 1.5 tsp cumin, ..."],
+  "cookingSteps": ["Heat 1 tbsp olive oil in a large pot over medium-high heat", ...]
 }
 
 Rules:
-- For "unit", use one of: whole, cups, tbsp, tsp, oz, lbs, cloves, slices, pieces
-- If a quantity is a fraction like "1/2", convert to decimal (0.5)
-- If no quantity is specified, use 1 and unit "whole"
-- Separate prep steps (no heat: measuring, cutting, mixing, preheating) from cooking steps (heat/assembly: sauteing, baking, boiling)
+- For "unit", use one of: whole, cups, tbsp, tsp, oz, lbs, cloves, slices, pieces, cans, pinch, dash
+- Fractions to decimal (1/2 = 0.5)
+- If no quantity, use 1 and "whole"
+- Include quantities in BOTH prep and cooking steps
 - Do not include any text outside the JSON`;
 
 /** Call Gemini API with a prompt and user content, expecting JSON response. */
