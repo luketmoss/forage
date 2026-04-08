@@ -6,31 +6,22 @@ import { ForageLogo } from '../shared/forage-logo';
 import { getConfigValue, setConfigValue } from '../../api/config-api';
 import { showToast } from '../../state/store';
 
-const DEFAULT_IMPORT_PROMPT = `You are a recipe extraction assistant. Given the text content of a recipe webpage, extract the recipe into a structured JSON format.
+const DEFAULT_IMPORT_PROMPT = `You are a recipe step classifier. Given a numbered list of recipe steps, classify each step as either "prep" or "cooking".
 
-Separate steps into "prep" (measuring, cutting, preheating, mixing dry ingredients) and "cooking" (applying heat, assembling, baking, frying, boiling).
+Prep steps: measuring, cutting, chopping, dicing, mincing, mixing, seasoning, marinating, preheating, breading, whisking — anything that does NOT involve applying heat to the food.
+
+Cooking steps: sauteing, frying, baking, boiling, simmering, roasting, grilling, broiling, steaming, assembling in a hot pan — anything that applies heat or is the final assembly.
 
 Return ONLY valid JSON with this exact structure:
 {
-  "name": "Recipe Name",
-  "description": "Brief description",
-  "servings": 4,
-  "ingredients": [
-    { "name": "ingredient name", "quantity": 1.5, "unit": "cups" }
-  ],
-  "prepSteps": [
-    "Step description"
-  ],
-  "cookingSteps": [
-    "Step description"
-  ]
+  "prepSteps": ["Step description", ...],
+  "cookingSteps": ["Step description", ...]
 }
 
 Rules:
-- For "unit", use one of: whole, cups, tbsp, tsp, oz, lbs, cloves, slices, pieces
-- If a quantity is a fraction like "1/2", convert to decimal (0.5)
-- If no quantity is specified, use 1 and unit "whole"
-- Separate prep steps (no heat: measuring, cutting, mixing, preheating) from cooking steps (heat/assembly: sauteing, baking, boiling)
+- Every input step must appear in exactly one of the two arrays
+- Preserve the original step text exactly
+- Do not add or remove steps
 - Do not include any text outside the JSON`;
 
 export function SettingsScreen() {
@@ -103,7 +94,7 @@ export function SettingsScreen() {
       <div class="settings-section">
         <h2>Recipe Import</h2>
         <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-sm)' }}>
-          Customize the AI prompt used when importing recipes from URLs.
+          Customize the AI prompt used to classify recipe steps into prep and cooking categories.
         </p>
         {promptLoaded ? (
           <>
@@ -121,6 +112,9 @@ export function SettingsScreen() {
                 Reset to Default
               </button>
             </div>
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 'var(--space-sm)', fontStyle: 'italic' }}>
+              This prompt is also used as the full extraction fallback for sites without structured recipe data.
+            </p>
           </>
         ) : (
           <div style={{ textAlign: 'center', padding: 'var(--space-md)' }}>
